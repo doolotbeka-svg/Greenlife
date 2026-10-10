@@ -1,0 +1,6 @@
+{
+  "name": "Greenleaf Corporation Store",
+  "description": "Официальный магазин эко-продукции корпорации Greenleaf: премиальная косметика Sealuxe, безопасный дом iLife и Kardli, гигиена Carich и партнерская программа с начислением PV.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
