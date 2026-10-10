@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Sparkles, User, RefreshCw, MessageCircle } from 'lucide-react';
 import { Language } from '../i18n/translations';
 import { SellerSettings } from '../types/store';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface ChatMessage {
   id: string;
@@ -33,6 +34,8 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({ language, sellerSettings }
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEscapeKey(isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (isOpen) {

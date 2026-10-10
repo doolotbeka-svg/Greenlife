@@ -23,6 +23,7 @@ import {
 import { Product, Order, SellerSettings, ProductCategory, BrandName, StockStatus } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 import { INITIAL_PRODUCTS, IMAGES } from '../data/products';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -60,6 +61,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onDeleteOrder,
 }) => {
   const t = TRANSLATIONS[language];
+  const L = (ky: string, ru: string) => (language === 'ky' ? ky : ru);
 
   // PIN security check
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -107,6 +109,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     onConfirm: () => void;
   } | null>(null);
 
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const showToast = (msg: string) => {
@@ -117,7 +121,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const correctPin = sellerSettings.adminPin || '2026';
-    if (enteredPin.trim() === correctPin || enteredPin.trim() === '2026' || enteredPin.trim() === 'admin') {
+    if (enteredPin.trim() === correctPin) {
       setIsAuthenticated(true);
       setPinError(false);
       setEnteredPin('');
@@ -340,7 +344,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] uppercase tracking-wider font-semibold text-[#2D6A4F]">
-                    {t.admin.title} · {sellerSettings.sellerCity || 'г. Ош'}
+                    {t.admin.title} · {sellerSettings.sellerCity || L('Ош ш.', 'г. Ош')}
                   </span>
                   <h2 className="text-lg sm:text-xl font-serif font-bold text-[#143427]">
                     {t.admin.subtitle}
@@ -353,7 +357,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   type="button"
                   onClick={() => setIsAuthenticated(false)}
                   className="p-2 text-[#5E7164] hover:text-[#143427] rounded-lg transition-colors border border-[#D5E0D2] bg-white"
-                  title="Выйти из админки"
+                  title={L('Админкадан чыгуу', 'Выйти из админки')}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -464,7 +468,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           type="text"
                           value={searchFilter}
                           onChange={(e) => setSearchFilter(e.target.value)}
-                          placeholder="Поиск товара..."
+                          placeholder={L('Товар издөө...', 'Поиск товара...')}
                           className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#CBD7C7] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#2D6A4F]"
                         />
                       </div>
@@ -474,12 +478,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         onChange={(e) => setCategoryFilter(e.target.value)}
                         className="text-xs px-2.5 py-2 bg-white border border-[#CBD7C7] rounded-lg"
                       >
-                        <option value="all">Все категории</option>
-                        <option value="cosmetics">Sealuxe Косметика</option>
-                        <option value="home">iLife & Kardli Эко-дом</option>
-                        <option value="hygiene">Carich Гигиена</option>
-                        <option value="health">Nilrich Здоровье</option>
-                        <option value="franchise">Франшиза / Кейсы</option>
+                        <option value="all">{L('Бардык категориялар', 'Все категории')}</option>
+                        <option value="cosmetics">{L('Sealuxe косметика', 'Sealuxe Косметика')}</option>
+                        <option value="home">{L('iLife & Kardli эко-үй', 'iLife & Kardli Эко-дом')}</option>
+                        <option value="hygiene">{L('Carich гигиена', 'Carich Гигиена')}</option>
+                        <option value="health">{L('Nilrich ден соолук', 'Nilrich Здоровье')}</option>
+                        <option value="franchise">{L('Франшиза / Кейстер', 'Франшиза / Кейсы')}</option>
                       </select>
                     </div>
 
@@ -537,7 +541,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <div className="flex flex-wrap items-center gap-3 self-end lg:self-center">
                             {/* Wholesale cost */}
                             <div className="w-24">
-                              <label className="text-[10px] text-[#6B8072] block">Закупка:</label>
+                              <label className="text-[10px] text-[#6B8072] block">{L('Дүң баа:', 'Закупка:')}</label>
                               <input
                                 type="number"
                                 value={p.wholesalePrice}
@@ -551,7 +555,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                             {/* Retail price */}
                             <div className="w-28">
-                              <label className="text-[10px] text-[#6B8072] block">Цена продажи:</label>
+                              <label className="text-[10px] text-[#6B8072] block">{L('Сатуу баасы:', 'Цена продажи:')}</label>
                               <input
                                 type="number"
                                 value={p.retailPrice}
@@ -565,7 +569,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                             {/* Profit calculation */}
                             <div className="text-right min-w-[70px]">
-                              <span className="text-[10px] text-[#6B8072] block">Прибыль:</span>
+                              <span className="text-[10px] text-[#6B8072] block">{L('Пайда:', 'Прибыль:')}</span>
                               <span className="font-mono font-bold text-[#2D6A4F]">
                                 +{formatPrice(profit, currency)}
                               </span>
@@ -671,10 +675,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
                       >
                         <option value="Sealuxe">Sealuxe (Косметика)</option>
-                        <option value="iLife">iLife (Эко-дом)</option>
+                        <option value="iLife">{L('iLife (Эко-үй)', 'iLife (Эко-дом)')}</option>
                         <option value="Carich">Carich (Гигиена)</option>
-                        <option value="Kardli">Kardli (Стирка)</option>
-                        <option value="Nilrich">Nilrich (Здоровье)</option>
+                        <option value="Kardli">{L('Kardli (Кир жуу)', 'Kardli (Стирка)')}</option>
+                        <option value="Nilrich">{L('Nilrich (Ден соолук)', 'Nilrich (Здоровье)')}</option>
                         <option value="Greenleaf Starter">Greenleaf Франшиза</option>
                       </select>
                     </div>
@@ -689,10 +693,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
                       >
                         <option value="cosmetics">Косметика (Sealuxe)</option>
-                        <option value="home">Эко-дом (iLife & Kardli)</option>
+                        <option value="home">{L('Эко-үй (iLife & Kardli)', 'Эко-дом (iLife & Kardli)')}</option>
                         <option value="hygiene">Гигиена (Carich)</option>
-                        <option value="health">Здоровье (Nilrich)</option>
-                        <option value="franchise">Франшиза / Кейсы</option>
+                        <option value="health">{L('Ден соолук (Nilrich)', 'Здоровье (Nilrich)')}</option>
+                        <option value="franchise">{L('Франшиза / Кейстер', 'Франшиза / Кейсы')}</option>
                       </select>
                     </div>
 
@@ -900,10 +904,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     : 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
                                 }`}
                               >
-                                <option value="new">Новый заказ</option>
-                                <option value="processing">В обработке</option>
-                                <option value="shipped">Отправлен / У курьера</option>
-                                <option value="completed">Выполнен</option>
+                                <option value="new">{L('Жаңы буюртма', 'Новый заказ')}</option>
+                                <option value="processing">{L('Иштетилүүдө', 'В обработке')}</option>
+                                <option value="shipped">{L('Жөнөтүлдү / Курьерде', 'Отправлен / У курьера')}</option>
+                                <option value="completed">{L('Аткарылды', 'Выполнен')}</option>
                               </select>
 
                               <a
@@ -919,13 +923,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm('Удалить этот заказ?')) {
+                                  if (window.confirm(L('Бул буюртманы өчүрөсүзбү?', 'Удалить этот заказ?'))) {
                                     onDeleteOrder(order.id);
-                                    showToast('Заказ удален');
+                                    showToast(L('Буюртма өчүрүлдү', 'Заказ удален'));
                                   }
                                 }}
                                 className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                title="Удалить заказ"
+                                title={L('Буюртманы өчүрүү', 'Удалить заказ')}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -934,25 +938,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[#465A4E]">
                             <div>
-                              <span className="text-[#758B7C] block">Получатель:</span>
+                              <span className="text-[#758B7C] block">{L('Алуучу:', 'Получатель:')}</span>
                               <p className="font-semibold text-[#183124]">{order.customerName} ({order.phone})</p>
                             </div>
                             <div>
-                              <span className="text-[#758B7C] block">Адрес получения:</span>
+                              <span className="text-[#758B7C] block">{L('Алуу дареги:', 'Адрес получения:')}</span>
                               <p className="font-medium text-[#183124]">{order.address}</p>
                             </div>
                           </div>
 
                           <div className="pt-2 border-t border-[#EAEFE7] flex justify-between items-center text-[#55695D]">
                             <span>
-                              {order.items.map((i) => `${i.product.name} × ${i.quantity}`).join(', ')}
+                              {order.items.map((i) => `${(language === 'ky' && i.product.nameKy) || i.product.name} × ${i.quantity}`).join(', ')}
                             </span>
                             <div className="text-right">
                               <span className="font-mono font-bold text-sm text-[#143427] tabular-nums block">
                                 {formatPrice(order.totalRetail, currency)}
                               </span>
                               <span className="text-[10px] text-[#2D6A4F] font-semibold">
-                                Прибыль: +{formatPrice(order.profit, currency)}
+                                {L('Пайда', 'Прибыль')}: +{formatPrice(order.profit, currency)}
                               </span>
                             </div>
                           </div>
@@ -976,16 +980,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <span className="text-2xl font-bold font-mono text-[#2D6A4F] tabular-nums">
                           +{sellerSettings.globalMarkupPercent}%
                         </span>
-                        <span className="text-xs text-[#52685A]">к цене завода</span>
+                        <span className="text-xs text-[#52685A]">{L('заводдук баага карата', 'к цене завода')}</span>
                       </div>
                       <p className="text-[11px] text-[#718779] mt-2">
-                        Автоматическая наценка ко всем оптовым ценам Greenleaf.
+                        {L('Greenleaf компаниясынын бардык дүң бааларына автоматтык наценка.', 'Автоматическая наценка ко всем оптовым ценам Greenleaf.')}
                       </p>
                     </div>
 
                     <div className="bg-[#FAFBF9] border border-[#DEE6DB] p-5 rounded-xl">
                       <span className="text-xs uppercase font-semibold text-[#667C6E]">
-                        Чистая прибыль со склада
+                        {L('Кампадан таза пайда', 'Чистая прибыль со склада')}
                       </span>
                       <div className="flex items-baseline gap-2 mt-1">
                         <span className="text-2xl font-bold font-mono text-[#143427] tabular-nums">
@@ -993,19 +997,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </span>
                       </div>
                       <p className="text-[11px] text-[#718779] mt-2">
-                        Общая выручка: {formatPrice(totalRevenue, currency)}
+                        {L('Жалпы түшкөн акча', 'Общая выручка')}: {formatPrice(totalRevenue, currency)}
                       </p>
                     </div>
 
                     <div className="bg-[#FAFBF9] border border-[#DEE6DB] p-5 rounded-xl">
                       <span className="text-xs uppercase font-semibold text-[#667C6E]">
-                        Товаров в наличии
+                        {L('Кампада бар товарлар', 'Товаров в наличии')}
                       </span>
                       <div className="text-2xl font-bold font-mono text-[#143427] mt-1 tabular-nums">
-                        {inStockCount} из {products.length}
+                        {language === 'ky' ? `${products.length} ичинен ${inStockCount}` : `${inStockCount} из ${products.length}`}
                       </div>
                       <p className="text-[11px] text-[#718779] mt-2">
-                        Готовы к быстрой отправке со склада в г. Ош.
+                        {L('Ош ш. кампасынан тез жөнөтүүгө даяр.', 'Готовы к быстрой отправке со склада в г. Ош.')}
                       </p>
                     </div>
                   </div>
@@ -1028,7 +1032,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           type="button"
                           onClick={() => {
                             onBulkMarkupChange(percent);
-                            showToast(`+${percent}% наценка применена ко всем товарам!`);
+                            showToast(language === 'ky' ? `+${percent}% наценка бардык товарларга колдонулду!` : `+${percent}% наценка применена ко всем товарам!`);
                           }}
                           className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
                             sellerSettings.globalMarkupPercent === percent
@@ -1220,27 +1224,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   {/* Financial Stats Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="p-4 bg-[#FAFBF9] rounded-xl border border-[#DFE7DB] space-y-1">
-                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">Всего заказов:</span>
+                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">{L('Бардык буюртмалар:', 'Всего заказов:')}</span>
                       <span className="text-xl font-bold font-mono text-[#143427] block">{orders.length}</span>
-                      <span className="text-[10px] text-[#4F6456]">оформлено через сайт и WhatsApp</span>
+                      <span className="text-[10px] text-[#4F6456]">{L('сайт жана WhatsApp аркылуу', 'оформлено через сайт и WhatsApp')}</span>
                     </div>
 
                     <div className="p-4 bg-[#FAFBF9] rounded-xl border border-[#DFE7DB] space-y-1">
-                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">Общая выручка:</span>
+                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">{L('Жалпы түшкөн акча:', 'Общая выручка:')}</span>
                       <span className="text-xl font-bold font-mono text-[#143427] block">{formatPrice(totalRevenue, currency)}</span>
-                      <span className="text-[10px] text-[#4F6456]">сумма по заказам клиентов</span>
+                      <span className="text-[10px] text-[#4F6456]">{L('кардарлардын буюртмаларынын суммасы', 'сумма по заказам клиентов')}</span>
                     </div>
 
                     <div className="p-4 bg-[#FAFBF9] rounded-xl border border-[#DFE7DB] space-y-1">
-                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">Оптовая закупка:</span>
+                      <span className="text-[11px] text-[#697E71] block font-semibold uppercase">{L('Дүң сатып алуу:', 'Оптовая закупка:')}</span>
                       <span className="text-xl font-bold font-mono text-[#526659] block">{formatPrice(totalWholesaleCost, currency)}</span>
-                      <span className="text-[10px] text-[#4F6456]">себестоимость у Greenleaf</span>
+                      <span className="text-[10px] text-[#4F6456]">{L('Greenleaf боюнча өздүк нарк', 'себестоимость у Greenleaf')}</span>
                     </div>
 
                     <div className="p-4 bg-[#EAF5EC] rounded-xl border border-[#C6E2CB] space-y-1">
-                      <span className="text-[11px] text-[#2D6A4F] block font-semibold uppercase">Чистая прибыль:</span>
+                      <span className="text-[11px] text-[#2D6A4F] block font-semibold uppercase">{L('Таза пайда:', 'Чистая прибыль:')}</span>
                       <span className="text-xl font-bold font-mono text-[#1B4332] block">+{formatPrice(totalRealizedProfit, currency)}</span>
-                      <span className="text-[10px] text-[#2D6A4F]">заработок продавца со склада</span>
+                      <span className="text-[10px] text-[#2D6A4F]">{L('сатуучунун кампадан тапкан кирешеси', 'заработок продавца со склада')}</span>
                     </div>
                   </div>
 
@@ -1248,10 +1252,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div className="bg-[#FAFBF9] border border-[#DFE7DB] rounded-2xl p-5 sm:p-6 space-y-4">
                     <div>
                       <h4 className="font-serif font-bold text-base text-[#143427]">
-                        Управление резервными копиями и сброс каталога
+                        {L('Камдык көчүрмөлөр жана каталогду баштапкы абалга кайтаруу', 'Управление резервными копиями и сброс каталога')}
                       </h4>
                       <p className="text-xs text-[#526659] mt-0.5">
-                        Вы можете сохранить все товары и настройки в JSON файл или вернуть начальный заводской каталог Greenleaf.
+                        {L('Бардык товарларды жана орнотууларды JSON файлга сактап же Greenleaf заводунун баштапкы каталогун кайтара аласыз.', 'Вы можете сохранить все товары и настройки в JSON файл или вернуть начальный заводской каталог Greenleaf.')}
                       </p>
                     </div>
 

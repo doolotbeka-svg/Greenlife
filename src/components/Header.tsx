@@ -48,12 +48,12 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#FAFAF7]/95 backdrop-blur-md border-b border-[#E3E8E1] transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-3">
         {/* Brand Wordmark & Location */}
         <div className="flex flex-col text-left shrink-0">
           <a 
             href="#" 
-            className="text-xl sm:text-2xl lg:text-3xl font-serif font-bold tracking-tight text-[#163826] hover:text-[#2D6A4F] transition-colors flex items-center gap-1.5"
+            className="text-lg sm:text-2xl lg:text-3xl font-serif font-bold tracking-tight text-[#163826] hover:text-[#2D6A4F] transition-colors flex items-center gap-1.5"
           >
             <span>{sellerSettings.storeName || 'Greenleaf Osh'}</span>
           </a>
@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigation links */}
-        <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-medium text-[#465A4F]">
+        <nav className="hidden xl:flex items-center gap-5 text-xs sm:text-sm font-medium text-[#465A4F]">
           <a href="#catalog" className="hover:text-[#163826] transition-colors">
             {t.header.catalog}
           </a>
@@ -94,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Actions Zone: Lang & Currency Selectors, Seller Mode, Cart */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
           {/* Language Switcher */}
           <div className="flex items-center bg-[#EDF3EC] rounded-lg p-0.5 border border-[#CFDFCD] text-xs font-semibold">
             <button
@@ -149,14 +149,14 @@ export const Header: React.FC<HeaderProps> = ({
             title={language === 'ky' ? 'Greenleaf администратор панели (Ош)' : 'Панель администратора Greenleaf (Ош)'}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-[#74C69D]" />
-            <span className="hidden sm:inline">{t.admin.button}</span>
+            <span className="hidden md:inline xl:hidden 2xl:inline">{t.admin.button}</span>
           </button>
 
           {/* Seller / Distributor Mode Toggle */}
           <button
             type="button"
             onClick={onOpenSellerPanel}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+            className={`max-[359px]:hidden flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
               isSellerMode
                 ? 'bg-[#1B4332] text-white shadow-xs'
                 : 'bg-[#EEF4EC] text-[#245C3F] hover:bg-[#E2EDE0] border border-[#CDE3CE]'
@@ -164,7 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Панель реселлера / бааларды башкаруу"
           >
             <Sliders className="w-3.5 h-3.5 text-[#2D6A4F]" />
-            <span className="hidden md:inline">{t.header.sellerPanel}</span>
+            <span className="hidden lg:inline xl:hidden 2xl:inline">{t.header.sellerPanel}</span>
           </button>
 
           {/* Orders tracker button */}

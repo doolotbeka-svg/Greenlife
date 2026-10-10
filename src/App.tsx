@@ -37,7 +37,7 @@ const DEFAULT_SELLER_SETTINGS: SellerSettings = {
   deliveryOshCost: 150,
   deliveryKgCost: 250,
   freeDeliveryThreshold: 3000,
-  workingHours: '09:00 - 20:00 (күн сайын / без выходных)',
+  workingHours: '09:00 - 20:00 (без выходных)',
   workingHoursKy: '09:00 - 20:00 (күн сайын)',
 };
 
@@ -332,10 +332,10 @@ export default function App() {
               type="button"
               onClick={() => setIsAdminOpen(true)}
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#2D6A4F] hover:bg-[#388563] text-white text-[11px] font-semibold transition-colors shadow-xs"
-              title="Панель администратора (PIN: 2026)"
+              title={t.admin.button}
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[#74C69D]" />
-              <span>{t.admin.button} (PIN: 2026)</span>
+              <span>{t.admin.button}</span>
             </button>
 
             <button

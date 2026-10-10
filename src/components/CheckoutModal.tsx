@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle2, MapPin, Truck, MessageSquare } from 'lucide-react';
 import { CartItem, Order, SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -32,6 +33,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

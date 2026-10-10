@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Calculator, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types/store';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface PvCalculatorModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ export const PvCalculatorModal: React.FC<PvCalculatorModalProps> = ({
 }) => {
   const [familyMembers, setFamilyMembers] = useState(3);
   const [monthlyBudget, setMonthlyBudget] = useState(4500);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

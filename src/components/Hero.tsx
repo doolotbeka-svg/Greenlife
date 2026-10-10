@@ -121,10 +121,10 @@ export const Hero: React.FC<HeroProps> = ({ sellerSettings, language, currency }
               <div className="absolute inset-0 bg-gradient-to-t from-[#143427]/75 via-transparent to-transparent flex items-end p-6">
                 <div className="text-white text-left">
                   <p className="text-xs tracking-wider uppercase font-semibold text-[#B7E4C7]">
-                    Кыргызстан, Ош ш. · Түз жеткирүү
+                    {language === 'ky' ? 'Кыргызстан, Ош ш. · Түз жеткирүү' : 'Кыргызстан, г. Ош · Прямые поставки'}
                   </p>
                   <p className="font-serif text-lg sm:text-2xl font-bold mt-1 text-white">
-                    Үй-бүлөңүз үчүн премиум эко-өнүмдөр
+                    {language === 'ky' ? 'Үй-бүлөңүз үчүн премиум эко-өнүмдөр' : 'Премиальная эко-продукция для всей семьи'}
                   </p>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Package, CheckCircle2, Printer } from 'lucide-react';
 import { Order } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface OrdersModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   language,
   currency,
 }) => {
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const t = TRANSLATIONS[language];

@@ -116,10 +116,10 @@ export const StoreLocationMap: React.FC<StoreLocationMapProps> = ({ sellerSettin
                         </p>
                         <p className="text-[11px] text-[#55695C] flex items-center gap-1">
                           <Clock className="w-3 h-3 text-[#2D6A4F]" />
-                          <span>09:00 - 20:00 (күн сайын / ежедневно)</span>
+                          <span>{language === 'ky' ? (sellerSettings.workingHoursKy || sellerSettings.workingHours) : sellerSettings.workingHours}</span>
                         </p>
                         <div className="pt-1 flex items-center justify-between border-t border-[#E3ECE1]">
-                          <span className="text-[10px] font-bold text-[#2D6A4F]">✓ Акысыз самовывоз</span>
+                          <span className="text-[10px] font-bold text-[#2D6A4F]">✓ {language === 'ky' ? 'Акысыз алып кетүү' : 'Бесплатный самовывоз'}</span>
                           <a
                             href={directionsUrl}
                             target="_blank"

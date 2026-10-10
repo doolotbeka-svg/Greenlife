@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle, Sparkles, Shield, Gift, ArrowRight, UserCheck } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types/store';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface PartnerRegistrationModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const PartnerRegistrationModal: React.FC<PartnerRegistrationModalProps> =
   const [activeTab, setActiveTab] = useState<'benefits' | 'enter_id'>('benefits');
   const [registeredSuccess, setRegisteredSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 
