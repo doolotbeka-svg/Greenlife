@@ -30,10 +30,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoError, setPromoError] = useState('');
 
   if (!isOpen) return null;
-
-  const [promoError, setPromoError] = useState('');
 
   const totalRetail = items.reduce(
     (sum, item) => sum + item.product.retailPrice * item.quantity,
