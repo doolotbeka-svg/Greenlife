@@ -1,14 +1,12 @@
 import express from 'express';
-import { createGeminiRouter } from './src/server/geminiRouter.ts';
+import { createApiApp } from './src/server/app.ts';
 
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-  app.use(express.json());
-
   // Mount API endpoints
-  app.use('/api/gemini', createGeminiRouter());
+  app.use(createApiApp());
 
   // In development, hook up Vite middleware
   if (process.env.NODE_ENV !== 'production') {

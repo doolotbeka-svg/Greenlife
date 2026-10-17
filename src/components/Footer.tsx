@@ -1,5 +1,9 @@
 import React from 'react';
-import { MessageSquare, MapPin, ShieldCheck, Sliders } from 'lucide-react';
+import { MessageSquare, MapPin, ShieldCheck, Sliders, Mail, Instagram, Send } from 'lucide-react';
+
+// Accepts a full link or just a username/handle
+const socialUrl = (value: string, base: string) =>
+  /^https?:\/\//.test(value) ? value : base + value.replace(/^@/, '');
 import { SellerSettings } from '../types/store';
 import { Language, TRANSLATIONS } from '../i18n/translations';
 
@@ -76,6 +80,30 @@ export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpen
                   {sellerSettings.sellerAddress || (language === 'ky' ? 'Кыргызстан, Ош шаары (Кыргызстан боюнча жеткирүү)' : 'Кыргызстан, г. Ош (доставка по всему Кыргызстану)')}
                 </span>
               </div>
+
+              {sellerSettings.email && (
+                <a href={`mailto:${sellerSettings.email}`} className="flex items-center gap-2 hover:text-white transition-colors">
+                  <Mail className="w-4 h-4 text-[#74C69D]" />
+                  <span>{sellerSettings.email}</span>
+                </a>
+              )}
+
+              {(sellerSettings.instagram || sellerSettings.telegram) && (
+                <div className="flex flex-wrap gap-3">
+                  {sellerSettings.instagram && (
+                    <a href={socialUrl(sellerSettings.instagram, 'https://instagram.com/')} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white transition-colors">
+                      <Instagram className="w-4 h-4 text-[#74C69D]" />
+                      <span>Instagram</span>
+                    </a>
+                  )}
+                  {sellerSettings.telegram && (
+                    <a href={socialUrl(sellerSettings.telegram, 'https://t.me/')} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white transition-colors">
+                      <Send className="w-4 h-4 text-[#74C69D]" />
+                      <span>Telegram</span>
+                    </a>
+                  )}
+                </div>
+              )}
 
               <div className="pt-2 flex flex-wrap gap-2">
 

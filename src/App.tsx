@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { INITIAL_PRODUCTS } from './data/products';
-import { Product, CartItem, Order, SellerSettings } from './types/store';
+import { Product, CartItem, Order, SellerSettings, SiteContent, Slide, PromoCode, Announcement, HeroTexts } from './types/store';
+import { DEFAULT_CONTENT, normalizeContent } from './data/defaultContent';
 import { Language, Currency, TRANSLATIONS, formatPrice } from './i18n/translations';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -22,39 +22,34 @@ import { AIChatBot } from './components/AIChatBot';
 import { Footer } from './components/Footer';
 import { Check, Sliders } from 'lucide-react';
 import { safeStorage } from './utils/storage';
+import { fetchContent, submitOrder } from './utils/api';
+import { findPromo, promoDiscount } from './utils/promo';
 
-const DEFAULT_SELLER_SETTINGS: SellerSettings = {
-  storeName: 'Greenleaf Osh',
-  sellerName: 'Дөөлөтбек (Менеджер)',
-  sellerCity: 'Ош шаары, Кыргызстан',
-  sellerAddress: 'Кыргызстан, Ош ш., Курманжан Датка көч.',
-  whatsappPhone: '+996770123456',
-  partnerId: 'KG-884920',
-  globalMarkupPercent: 60,
-  currency: 'KGS',
-  language: 'ky',
-  adminPin: '1995',
-  deliveryOshCost: 150,
-  deliveryKgCost: 250,
-  freeDeliveryThreshold: 3000,
-  workingHours: '09:00 - 20:00 (без выходных)',
-  workingHoursKy: '09:00 - 20:00 (күн сайын)',
-};
+const CONTENT_CACHE_KEY = 'greenleaf_site_content_cache';
+
+// Last content seen from the server, so repeat visits render the real catalog immediately
+function loadCachedContent(): SiteContent {
+  try {
+    const saved = safeStorage.getItem(CONTENT_CACHE_KEY);
+    return saved ? normalizeContent(JSON.parse(saved)) : DEFAULT_CONTENT;
+  } catch {
+    return DEFAULT_CONTENT;
+  }
+}
 
 export default function App() {
-  // Reseller settings
-  const [sellerSettings, setSellerSettings] = useState<SellerSettings>(() => {
-    try {
-      const saved = safeStorage.getItem('greenleaf_reseller_settings_kg');
-      if (!saved) return DEFAULT_SELLER_SETTINGS;
-      const parsed: SellerSettings = JSON.parse(saved);
-      // Settings saved before the PIN change still carry the old default
-      if (!parsed.adminPin || parsed.adminPin === '2026') parsed.adminPin = DEFAULT_SELLER_SETTINGS.adminPin;
-      return parsed;
-    } catch {
-      return DEFAULT_SELLER_SETTINGS;
-    }
-  });
+  // Site content published from the admin panel
+  const [initialContent] = useState(loadCachedContent);
+  const [sellerSettings, setSellerSettingsState] = useState<SellerSettings>(initialContent.settings);
+  const [slides, setSlidesState] = useState<Slide[]>(initialContent.slides);
+  const [promoCodes, setPromoCodesState] = useState<PromoCode[]>(initialContent.promoCodes);
+  const [announcement, setAnnouncementState] = useState<Announcement>(initialContent.announcement);
+  const [heroTexts, setHeroTextsState] = useState<HeroTexts>(initialContent.hero);
+  // True when the admin has edits that are not published yet
+  const [isContentDirty, setIsContentDirty] = useState(false);
+  // Server content loaded (or confirmed empty); until then the admin must not publish
+  const [isContentReady, setIsContentReady] = useState(false);
+  const [appliedPromoCode, setAppliedPromoCode] = useState('');
 
   // Language & Currency
   const [language, setLanguage] = useState<Language>(() => {
@@ -75,15 +70,7 @@ export default function App() {
     }
   });
 
-  // Product catalog with reseller customized prices & stock
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = safeStorage.getItem('greenleaf_reseller_products_kg');
-      return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-    } catch {
-      return INITIAL_PRODUCTS;
-    }
-  });
+  const [products, setProductsState] = useState<Product[]>(initialContent.products);
 
   // Seller mode toggle (displays wholesale costs & profit margin)
   const [isSellerMode, setIsSellerMode] = useState<boolean>(() => {
@@ -138,10 +125,56 @@ export default function App() {
     };
   }, []);
 
-  // Sync to safeStorage
+  const applyContent = (content: SiteContent) => {
+    setSellerSettingsState(content.settings);
+    setProductsState(content.products);
+    setSlidesState(content.slides);
+    setPromoCodesState(content.promoCodes);
+    setAnnouncementState(content.announcement);
+    setHeroTextsState(content.hero);
+    setIsContentDirty(false);
+  };
+
+  // Admin edits mark the content as unpublished
+  const markDirty = () => setIsContentDirty(true);
+  const setSellerSettings = (v: SellerSettings | ((p: SellerSettings) => SellerSettings)) => { setSellerSettingsState(v); markDirty(); };
+  const setProducts = (v: Product[] | ((p: Product[]) => Product[])) => { setProductsState(v); markDirty(); };
+  const setSlides = (v: Slide[]) => { setSlidesState(v); markDirty(); };
+  const setPromoCodes = (v: PromoCode[]) => { setPromoCodesState(v); markDirty(); };
+  const setAnnouncement = (v: Announcement) => { setAnnouncementState(v); markDirty(); };
+  const setHeroTexts = (v: HeroTexts) => { setHeroTextsState(v); markDirty(); };
+
+  const currentContent = (): SiteContent => ({
+    settings: sellerSettings,
+    products,
+    slides,
+    promoCodes,
+    announcement,
+    hero: heroTexts,
+  });
+
   useEffect(() => {
-    safeStorage.setItem('greenleaf_reseller_settings_kg', JSON.stringify(sellerSettings));
-  }, [sellerSettings]);
+    let cancelled = false;
+    fetchContent()
+      .then((content) => {
+        if (cancelled) return;
+        const next = content ? normalizeContent(content) : DEFAULT_CONTENT;
+        applyContent(next);
+        setIsContentReady(true);
+        safeStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(next));
+      })
+      .catch(() => {
+        // Offline or API unavailable: keep the cached / bundled content
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleContentPublished = () => {
+    setIsContentDirty(false);
+    safeStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(currentContent()));
+  };
 
   useEffect(() => {
     safeStorage.setItem('greenleaf_lang', language);
@@ -157,10 +190,6 @@ export default function App() {
       ? 'Greenleaf Ош — Түп нуска эко-продукция (Кыргызстан)'
       : 'Greenleaf Ош — Оригинальная эко-продукция от поставщика (Кыргызстан)';
   }, [language]);
-
-  useEffect(() => {
-    safeStorage.setItem('greenleaf_reseller_products_kg', JSON.stringify(products));
-  }, [products]);
 
   useEffect(() => {
     safeStorage.setItem('greenleaf_is_seller_mode_kg', JSON.stringify(isSellerMode));
@@ -249,21 +278,8 @@ export default function App() {
   };
 
   const handleResetCatalog = () => {
-    setProducts(INITIAL_PRODUCTS);
-    safeStorage.removeItem('greenleaf_reseller_products_kg');
+    setProducts(DEFAULT_CONTENT.products);
     showToast(language === 'ky' ? 'Каталог баштапкы абалга кайтарылды' : 'Каталог сброшен к заводскому');
-  };
-
-  const handleUpdateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
-    );
-    showToast(language === 'ky' ? 'Буюртманын абалы жаңыртылды' : 'Статус заказа обновлен');
-  };
-
-  const handleDeleteOrder = (orderId: string) => {
-    setOrders((prev) => prev.filter((o) => o.id !== orderId));
-    showToast(language === 'ky' ? 'Буюртма өчүрүлдү' : 'Заказ удален');
   };
 
   const handleBulkMarkupChange = (markupPercent: number) => {
@@ -285,17 +301,38 @@ export default function App() {
     });
   };
 
-  const handleOrderSuccess = (newOrder: Order) => {
-    setOrders((prev) => [newOrder, ...prev]);
+  // Sends the order to the shop; if the server is unreachable the order stays local and
+  // the shopper can still send it over WhatsApp from the confirmation screen
+  const handleOrderSuccess = async (draft: Order): Promise<{ order: Order; saved: boolean }> => {
+    let order = draft;
+    let saved = true;
+    try {
+      order = await submitOrder(draft);
+    } catch {
+      saved = false;
+    }
+    setOrders((prev) => [order, ...prev]);
     handleClearCart();
-    showToast(`${language === 'ky' ? 'Буюртма' : 'Заказ'} #${newOrder.id} ${language === 'ky' ? 'кабыл алынды!' : 'успешно сформирован!'}`);
+    setAppliedPromoCode('');
+    showToast(`${language === 'ky' ? 'Буюртма' : 'Заказ'} #${order.id} ${language === 'ky' ? 'кабыл алынды!' : 'успешно сформирован!'}`);
+    return { order, saved };
   };
 
-  const totalCartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0);
-  const totalCartAmount = cartItems.reduce(
+  const visibleProducts = products.filter((p) => !p.hidden);
+
+  // Cart keeps product snapshots; refresh them so price edits apply and hidden items drop out
+  const liveCartItems: CartItem[] = cartItems
+    .map((item) => ({ ...item, product: products.find((p) => p.id === item.product.id) || item.product }))
+    .filter((item) => !item.product.hidden);
+
+  const totalCartCount = liveCartItems.reduce((acc, i) => acc + i.quantity, 0);
+  const totalCartAmount = liveCartItems.reduce(
     (sum, item) => sum + item.product.retailPrice * item.quantity,
     0
   );
+
+  const appliedPromo = findPromo(promoCodes, appliedPromoCode);
+  const cartDiscount = promoDiscount(appliedPromo, totalCartAmount);
 
   if (isAdminPage) {
     return (
@@ -305,18 +342,29 @@ export default function App() {
           asPage
           onClose={closeAdminPage}
           products={products}
-          orders={orders}
           sellerSettings={sellerSettings}
+          slides={slides}
+          promoCodes={promoCodes}
+          announcement={announcement}
+          heroTexts={heroTexts}
+          isDirty={isContentDirty}
+          contentReady={isContentReady}
+          getContent={currentContent}
+          onPublished={handleContentPublished}
           language={language}
           currency={currency}
+          onLanguageChange={setLanguage}
           onUpdateSettings={setSellerSettings}
           onUpdateProduct={handleUpdateProduct}
           onAddProduct={handleAddProduct}
           onDeleteProduct={handleDeleteProduct}
+          onReorderProducts={setProducts}
           onResetCatalog={handleResetCatalog}
           onBulkMarkupChange={handleBulkMarkupChange}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
-          onDeleteOrder={handleDeleteOrder}
+          onUpdateSlides={setSlides}
+          onUpdatePromoCodes={setPromoCodes}
+          onUpdateAnnouncement={setAnnouncement}
+          onUpdateHeroTexts={setHeroTexts}
         />
       </div>
     );
@@ -355,6 +403,16 @@ export default function App() {
           <Check className="w-4 h-4 text-[#74C69D] shrink-0" />
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {/* Sale / news bar managed from the admin panel */}
+      {announcement.enabled && (language === 'ky' ? announcement.textKy : announcement.textRu) && (
+        <a
+          href={announcement.link || '#catalog'}
+          className="block bg-[#E07A5F] hover:bg-[#D06A4F] text-white text-center text-xs sm:text-sm font-semibold px-4 py-2 transition-colors"
+        >
+          {language === 'ky' ? announcement.textKy : announcement.textRu}
+        </a>
       )}
 
       {/* Reseller Toolbar Banner */}
@@ -415,13 +473,15 @@ export default function App() {
         {/* Hero Section */}
         <Hero
           sellerSettings={sellerSettings}
+          slides={slides}
+          heroTexts={heroTexts}
           language={language}
           currency={currency}
         />
 
         {/* Catalog Grid */}
         <CatalogSection
-          products={products}
+          products={visibleProducts}
           isSellerMode={isSellerMode}
           sellerSettings={sellerSettings}
           language={language}
@@ -472,10 +532,14 @@ export default function App() {
       <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
-        items={cartItems}
+        items={liveCartItems}
         sellerSettings={sellerSettings}
         language={language}
         currency={currency}
+        promoCodes={promoCodes}
+        appliedPromoCode={appliedPromo ? appliedPromo.code : ''}
+        discount={cartDiscount}
+        onApplyPromo={setAppliedPromoCode}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onOpenCheckout={() => {
@@ -488,10 +552,12 @@ export default function App() {
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
-        items={cartItems}
+        items={liveCartItems}
         sellerSettings={sellerSettings}
         language={language}
         currency={currency}
+        promoCode={appliedPromo ? appliedPromo.code : ''}
+        discount={cartDiscount}
         onOrderSuccess={handleOrderSuccess}
       />
 

@@ -1,16 +1,12 @@
-import { Product } from '../types/store';
-import heroImg from '../assets/images/hero_greenleaf_brand_1791130855505.jpg';
-import sealuxeSerumImg from '../assets/images/product_sealuxe_serum_1791130867845.jpg';
-import ilifeEcocareImg from '../assets/images/product_ilife_ecocare_1791130880022.jpg';
-import carichToothpasteImg from '../assets/images/product_carich_toothpaste_1791130890503.jpg';
-import kardliLaundryImg from '../assets/images/product_kardli_laundry_sheets_1791130902833.jpg';
+import type { Product } from '../types/store';
 
+// Bundled photos live in /public/images so their URLs stay stable when saved in site content
 export const IMAGES = {
-  hero: heroImg,
-  sealuxeSerum: sealuxeSerumImg,
-  ilifeEcocare: ilifeEcocareImg,
-  carichToothpaste: carichToothpasteImg,
-  kardliLaundry: kardliLaundryImg,
+  hero: '/images/hero_greenleaf_brand.jpg',
+  sealuxeSerum: '/images/product_sealuxe_serum.jpg',
+  ilifeEcocare: '/images/product_ilife_ecocare.jpg',
+  carichToothpaste: '/images/product_carich_toothpaste.jpg',
+  kardliLaundry: '/images/product_kardli_laundry_sheets.jpg',
 };
 
 export const INITIAL_PRODUCTS: Product[] = [

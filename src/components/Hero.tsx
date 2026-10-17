@@ -1,17 +1,35 @@
-import React from 'react';
-import { ArrowDown, ShieldCheck, CheckCircle2, MessageSquare, Truck, MapPin } from 'lucide-react';
-import { IMAGES } from '../data/products';
-import { SellerSettings } from '../types/store';
+import React, { useEffect, useState } from 'react';
+import { ArrowDown, ShieldCheck, CheckCircle2, MessageSquare, Truck, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SellerSettings, Slide, HeroTexts } from '../types/store';
 import { Language, Currency, TRANSLATIONS } from '../i18n/translations';
 
 interface HeroProps {
   sellerSettings: SellerSettings;
+  slides: Slide[];
+  heroTexts: HeroTexts;
   language: Language;
   currency: Currency;
 }
 
-export const Hero: React.FC<HeroProps> = ({ sellerSettings, language, currency }) => {
+export const Hero: React.FC<HeroProps> = ({ sellerSettings, slides, heroTexts, language, currency }) => {
   const t = TRANSLATIONS[language];
+  const ky = language === 'ky';
+  const badge = (ky ? heroTexts.badgeKy : heroTexts.badgeRu) || t.hero.badge;
+  const title = (ky ? heroTexts.titleKy : heroTexts.titleRu) || t.hero.title;
+  const subtitle = (ky ? heroTexts.subtitleKy : heroTexts.subtitleRu) || t.hero.subtitle;
+
+  const activeSlides = slides.filter((s) => s.enabled && s.image);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const current = activeSlides.length ? activeSlides[slideIndex % activeSlides.length] : null;
+
+  useEffect(() => {
+    if (activeSlides.length < 2) return;
+    const timer = window.setInterval(() => setSlideIndex((i) => (i + 1) % activeSlides.length), 6000);
+    return () => window.clearInterval(timer);
+  }, [activeSlides.length]);
+
+  const go = (delta: number) =>
+    setSlideIndex((i) => (i + delta + activeSlides.length) % activeSlides.length);
   const cleanPhone = sellerSettings.whatsappPhone.replace(/[^0-9]/g, '');
   const waUrl = cleanPhone
     ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
@@ -30,16 +48,16 @@ export const Hero: React.FC<HeroProps> = ({ sellerSettings, language, currency }
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2D6A4F]">
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{t.hero.badge}</span>
+                <span>{badge}</span>
               </span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-[#143427] leading-[1.18] tracking-tight">
-              {t.hero.title}
+              {title}
             </h1>
 
             <p className="text-sm sm:text-base text-[#3D5245] leading-relaxed max-w-xl">
-              {t.hero.subtitle}
+              {subtitle}
             </p>
 
             {/* CTAs */}
@@ -110,24 +128,62 @@ export const Hero: React.FC<HeroProps> = ({ sellerSettings, language, currency }
           {/* Right Column: Visual Campaign */}
           <div className="lg:col-span-6 relative">
             <div className="relative rounded-2xl overflow-hidden shadow-lg border border-[#D5DFD0] aspect-[16/10] bg-[#E8EDE5]">
-              <img
-                src={IMAGES.hero}
-                alt="Greenleaf түп нуска продукциясы"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-                loading="eager"
-              />
-              
-              <div className="absolute inset-0 bg-gradient-to-t from-[#143427]/75 via-transparent to-transparent flex items-end p-6">
-                <div className="text-white text-left">
-                  <p className="text-xs tracking-wider uppercase font-semibold text-[#B7E4C7]">
-                    {language === 'ky' ? 'Кыргызстан, Ош ш. · Түз жеткирүү' : 'Кыргызстан, г. Ош · Прямые поставки'}
-                  </p>
-                  <p className="font-serif text-lg sm:text-2xl font-bold mt-1 text-white">
-                    {language === 'ky' ? 'Үй-бүлөңүз үчүн премиум эко-өнүмдөр' : 'Премиальная эко-продукция для всей семьи'}
-                  </p>
-                </div>
-              </div>
+              {current && (
+                <a href={current.link || '#catalog'} className="block w-full h-full">
+                  <img
+                    key={current.id}
+                    src={current.image}
+                    alt={(ky ? current.titleKy : current.titleRu) || 'Greenleaf'}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover animate-in fade-in duration-500"
+                    loading="eager"
+                  />
+                  {((ky ? current.titleKy : current.titleRu) || (ky ? current.subtitleKy : current.subtitleRu)) && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#143427]/75 via-transparent to-transparent flex items-end p-6">
+                      <div className="text-white text-left">
+                        <p className="text-xs tracking-wider uppercase font-semibold text-[#B7E4C7]">
+                          {ky ? current.subtitleKy : current.subtitleRu}
+                        </p>
+                        <p className="font-serif text-lg sm:text-2xl font-bold mt-1 text-white">
+                          {ky ? current.titleKy : current.titleRu}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </a>
+              )}
+
+              {activeSlides.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => go(-1)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-[#143427] flex items-center justify-center shadow"
+                    aria-label={ky ? 'Мурунку слайд' : 'Предыдущий слайд'}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => go(1)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-[#143427] flex items-center justify-center shadow"
+                    aria-label={ky ? 'Кийинки слайд' : 'Следующий слайд'}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div className="absolute top-3 right-3 flex gap-1.5">
+                    {activeSlides.map((s, i) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSlideIndex(i)}
+                        className={`h-2 rounded-full transition-all ${i === slideIndex % activeSlides.length ? 'w-5 bg-white' : 'w-2 bg-white/60'}`}
+                        aria-label={`${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Quick stock notice badge */}

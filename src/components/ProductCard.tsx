@@ -24,6 +24,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const t = TRANSLATIONS[language];
   const profit = product.retailPrice - product.wholesalePrice;
+  const onSale = !!product.oldPrice && product.oldPrice > product.retailPrice;
+  const salePercent = onSale ? Math.round((1 - product.retailPrice / product.oldPrice!) * 100) : 0;
   const cleanPhone = sellerSettings.whatsappPhone.replace(/[^0-9]/g, '');
 
   const productName = (language === 'ky' && product.nameKy) ? product.nameKy : product.name;
@@ -64,6 +66,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {isSellerMode ? (
             <span className="bg-[#1B4332] text-[#D8F3DC] px-2 py-0.5 rounded text-[11px] font-mono font-bold tabular-nums">
               +{formatPrice(profit, currency)} {t.catalog.profitBadge}
+            </span>
+          ) : onSale ? (
+            <span className="bg-[#E07A5F] text-white px-2 py-0.5 rounded text-[11px] font-bold">
+              -{salePercent}% {language === 'ky' ? 'Акция' : 'Акция'}
             </span>
           ) : (
             product.bestseller && (
@@ -123,9 +129,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="pt-2 border-t border-[#EEF2EC] flex items-end justify-between gap-2">
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-lg sm:text-xl font-bold text-[#143427] font-mono tabular-nums">
+              <span className={`text-lg sm:text-xl font-bold font-mono tabular-nums ${onSale ? 'text-[#C2543A]' : 'text-[#143427]'}`}>
                 {formatPrice(product.retailPrice, currency)}
               </span>
+              {onSale && (
+                <span className="text-xs text-[#8A9A8F] line-through font-mono tabular-nums">
+                  {formatPrice(product.oldPrice!, currency)}
+                </span>
+              )}
             </div>
 
             {isSellerMode ? (
