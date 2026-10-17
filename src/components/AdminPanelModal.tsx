@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Store,
@@ -19,11 +19,22 @@ import {
   Truck,
   Eye,
   LogOut,
+  EyeOff,
+  ArrowUp,
+  ArrowDown,
+  Images,
+  Tag,
+  Type,
+  UploadCloud,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
-import { Product, Order, SellerSettings, ProductCategory, BrandName, StockStatus } from '../types/store';
+import { Product, Order, SellerSettings, ProductCategory, BrandName, StockStatus, Slide, PromoCode, Announcement, HeroTexts, SiteContent } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 import { INITIAL_PRODUCTS, IMAGES } from '../data/products';
 import { useEscapeKey } from '../utils/useEscapeKey';
+import { adminLogin, adminSession, saveContent, fetchOrders, updateOrderStatus, deleteOrder, changeAdminPassword, ApiError } from '../utils/api';
+import { ImageField, SlidesEditor, PromotionsEditor, TextsEditor, moveItem } from './AdminContentEditors';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -31,18 +42,31 @@ interface AdminPanelModalProps {
   asPage?: boolean;
   onClose: () => void;
   products: Product[];
-  orders: Order[];
   sellerSettings: SellerSettings;
+  slides: Slide[];
+  promoCodes: PromoCode[];
+  announcement: Announcement;
+  heroTexts: HeroTexts;
+  // Unpublished edits exist
+  isDirty: boolean;
+  // Saved content finished loading from the server, so publishing will not overwrite it with defaults
+  contentReady: boolean;
+  getContent: () => SiteContent;
+  onPublished: () => void;
   language: Language;
   currency: Currency;
+  onLanguageChange: (language: Language) => void;
   onUpdateSettings: (settings: SellerSettings) => void;
   onUpdateProduct: (product: Product) => void;
   onAddProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
+  onReorderProducts: (products: Product[]) => void;
   onResetCatalog: () => void;
   onBulkMarkupChange: (markupPercent: number) => void;
-  onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
-  onDeleteOrder: (orderId: string) => void;
+  onUpdateSlides: (slides: Slide[]) => void;
+  onUpdatePromoCodes: (codes: PromoCode[]) => void;
+  onUpdateAnnouncement: (a: Announcement) => void;
+  onUpdateHeroTexts: (h: HeroTexts) => void;
 }
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
@@ -50,29 +74,50 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   asPage = false,
   onClose,
   products,
-  orders,
   sellerSettings,
+  slides,
+  promoCodes,
+  announcement,
+  heroTexts,
+  isDirty,
+  contentReady,
+  getContent,
+  onPublished,
   language,
   currency,
+  onLanguageChange,
   onUpdateSettings,
   onUpdateProduct,
   onAddProduct,
   onDeleteProduct,
+  onReorderProducts,
   onResetCatalog,
   onBulkMarkupChange,
-  onUpdateOrderStatus,
-  onDeleteOrder,
+  onUpdateSlides,
+  onUpdatePromoCodes,
+  onUpdateAnnouncement,
+  onUpdateHeroTexts,
 }) => {
   const t = TRANSLATIONS[language];
   const L = (ky: string, ru: string) => (language === 'ky' ? ky : ru);
 
-  // PIN security check
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Password is checked by the server; it is kept for this tab and sent with each admin request
+  const [password, setPassword] = useState('');
+  const isAuthenticated = !!password;
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinMessage, setPinMessage] = useState('');
+  const [isCheckingPin, setIsCheckingPin] = useState(false);
+
+  // Orders come from the server: every shopper's order, not just this browser's
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'products' | 'form' | 'orders' | 'pricing' | 'settings' | 'analytics'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'form' | 'orders' | 'pricing' | 'settings' | 'analytics' | 'slides' | 'promo' | 'texts'>('products');
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
@@ -114,6 +159,48 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   useEscapeKey(isOpen, onClose);
 
+  // Settings arrive from the server after the panel opens
+  useEffect(() => {
+    setLocalSettings(sellerSettings);
+  }, [sellerSettings]);
+
+  // Resume the session of this tab, if the saved password is still valid
+  useEffect(() => {
+    const saved = adminSession.get();
+    if (!saved) return;
+    adminLogin(saved)
+      .then(() => setPassword(saved))
+      .catch(() => adminSession.clear());
+  }, []);
+
+  const loadOrders = async (pw = password) => {
+    if (!pw) return;
+    setOrdersLoading(true);
+    setOrdersError('');
+    try {
+      setOrders(await fetchOrders(pw));
+    } catch {
+      setOrdersError(language === 'ky' ? 'Буюртмаларды жүктөө мүмкүн болгон жок.' : 'Не удалось загрузить заказы.');
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (password) loadOrders(password);
+  }, [password]);
+
+  // Warn before leaving with unpublished edits
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   if (!isOpen) return null;
 
   const showToast = (msg: string) => {
@@ -121,15 +208,92 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = sellerSettings.adminPin || '1995';
-    if (enteredPin.trim() === correctPin) {
-      setIsAuthenticated(true);
+    const pw = enteredPin.trim();
+    if (!pw || isCheckingPin) return;
+    setIsCheckingPin(true);
+    setPinMessage('');
+    try {
+      await adminLogin(pw);
+      adminSession.set(pw);
+      setPassword(pw);
       setPinError(false);
       setEnteredPin('');
-    } else {
+    } catch (err) {
       setPinError(true);
+      const code = err instanceof ApiError ? err.status : 0;
+      if (code === 429) setPinMessage(L('Өтө көп аракет. 1 мүнөттөн кийин кайталаңыз.', 'Слишком много попыток. Повторите через минуту.'));
+      else if (code !== 401) setPinMessage(L('Сервер менен байланыш жок.', 'Нет связи с сервером.'));
+    } finally {
+      setIsCheckingPin(false);
+    }
+  };
+
+  const handleLogout = () => {
+    adminSession.clear();
+    setPassword('');
+    setOrders([]);
+  };
+
+  const handlePublish = async () => {
+    if (!contentReady) {
+      showToast(L('Сайттын маалыматы али жүктөлө элек. Баракты жаңыртыңыз.', 'Данные сайта ещё не загрузились. Обновите страницу.'));
+      return;
+    }
+    setIsPublishing(true);
+    try {
+      await saveContent(getContent(), password);
+      onPublished();
+      showToast(L('Өзгөртүүлөр сайтка жарыяланды!', 'Изменения опубликованы на сайте!'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) handleLogout();
+      showToast(
+        err instanceof ApiError && err.code === 'too_large'
+          ? L('Маалымат өтө чоң.', 'Слишком много данных.')
+          : L('Сактоо мүмкүн болгон жок. Кайра аракет кылыңыз.', 'Не удалось сохранить. Попробуйте ещё раз.')
+      );
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleOrderStatus = async (orderId: string, status: Order['status']) => {
+    const previous = orders;
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
+    try {
+      await updateOrderStatus(orderId, status, password);
+    } catch {
+      setOrders(previous);
+      showToast(L('Абалын өзгөртүү мүмкүн болгон жок.', 'Не удалось изменить статус.'));
+    }
+  };
+
+  const handleOrderDelete = async (orderId: string) => {
+    try {
+      await deleteOrder(orderId, password);
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      showToast(L('Буюртма өчүрүлдү', 'Заказ удален'));
+    } catch {
+      showToast(L('Өчүрүү мүмкүн болгон жок.', 'Не удалось удалить.'));
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const pw = newPassword.trim();
+    if (pw.length < 4) {
+      showToast(L('Сырсөз кеминде 4 белгиден турушу керек.', 'Пароль должен быть не короче 4 символов.'));
+      return;
+    }
+    try {
+      await changeAdminPassword(pw, password);
+      adminSession.set(pw);
+      setPassword(pw);
+      setNewPassword('');
+      showToast(L('Сырсөз өзгөртүлдү.', 'Пароль изменён.'));
+    } catch {
+      showToast(L('Сырсөздү өзгөртүү мүмкүн болгон жок.', 'Не удалось изменить пароль.'));
     }
   };
 
@@ -205,6 +369,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       certification: formProduct.certification || ['GMP Standard'],
       stockStatus: (formProduct.stockStatus as StockStatus) || 'in_stock',
       bestseller: !!formProduct.bestseller,
+      oldPrice: Number(formProduct.oldPrice) > 0 ? Number(formProduct.oldPrice) : undefined,
+      hidden: !!formProduct.hidden,
     };
 
     if (editingProductId) {
@@ -315,7 +481,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 />
                 {pinError && (
                   <p className="text-xs text-red-600 font-semibold mt-1.5">
-                    {t.admin.pinError}
+                    {pinMessage || t.admin.pinError}
                   </p>
                 )}
               </div>
@@ -340,8 +506,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         ) : (
           <>
             {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-[#E3EAE0] flex items-center justify-between bg-[#F8FAF7] shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="p-4 sm:p-6 border-b border-[#E3EAE0] flex flex-wrap items-center justify-between gap-3 bg-[#F8FAF7] shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shadow-xs">
                   <ShieldCheck className="w-5 h-5 text-[#74C69D]" />
                 </div>
@@ -349,16 +515,42 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <span className="text-[11px] uppercase tracking-wider font-semibold text-[#2D6A4F]">
                     {t.admin.title} · {sellerSettings.sellerCity || L('Ош ш.', 'г. Ош')}
                   </span>
-                  <h2 className="text-lg sm:text-xl font-serif font-bold text-[#143427]">
+                  <h2 className="hidden sm:block text-lg sm:text-xl font-serif font-bold text-[#143427]">
                     {t.admin.subtitle}
                   </h2>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                <div className="flex items-center bg-white rounded-lg p-0.5 border border-[#D5E0D2] text-[11px] font-semibold">
+                  {(['ky', 'ru'] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => onLanguageChange(lang)}
+                      className={`px-2 py-1 rounded ${language === lang ? 'bg-[#1B4332] text-white' : 'text-[#5E7164]'}`}
+                    >
+                      {lang === 'ky' ? 'KG' : 'RU'}
+                    </button>
+                  ))}
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setIsAuthenticated(false)}
+                  onClick={handlePublish}
+                  disabled={isPublishing || !isDirty}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    isDirty ? 'bg-[#E07A5F] hover:bg-[#C9654B] text-white shadow-sm' : 'bg-white text-[#8A9A8F] border border-[#D5E0D2]'
+                  }`}
+                  title={L('Өзгөртүүлөрдү бардык кардарлар үчүн сактоо', 'Сохранить изменения для всех посетителей')}
+                >
+                  {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                  <span>{isDirty ? L('Сайтка жарыялоо', 'Опубликовать') : L('Жарыяланды', 'Опубликовано')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
                   className="p-2 text-[#5E7164] hover:text-[#143427] rounded-lg transition-colors border border-[#D5E0D2] bg-white"
                   title={L('Админкадан чыгуу', 'Выйти из админки')}
                 >
@@ -375,6 +567,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {isDirty && (
+              <div className="px-6 py-2 bg-[#FFF4EE] border-b border-[#F3D3C6] text-[11px] text-[#9A4A33] font-medium shrink-0">
+                {L(
+                  'Сакталбаган өзгөртүүлөр бар. Кардарлар аларды «Сайтка жарыялоо» баскычын баскандан кийин гана көрүшөт.',
+                  'Есть неопубликованные изменения. Посетители увидят их только после нажатия «Опубликовать».'
+                )}
+              </div>
+            )}
 
             {/* Navigation Tabs */}
             <div className="flex border-b border-[#E3EAE0] bg-[#FAFBF9] px-6 overflow-x-auto scrollbar-none text-xs sm:text-sm shrink-0">
@@ -442,6 +643,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <Settings className="w-4 h-4 text-[#2D6A4F]" />
                 <span>{t.admin.tabSettings}</span>
               </button>
+
+              {([
+                ['slides', Images, L('Слайддар', 'Слайды')],
+                ['promo', Tag, L('Акциялар', 'Акции')],
+                ['texts', Type, L('Тексттер', 'Тексты')],
+              ] as const).map(([key, Icon, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTab(key)}
+                  className={`py-3.5 border-b-2 mr-6 font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    activeTab === key
+                      ? 'border-[#2D6A4F] text-[#143427] font-bold'
+                      : 'border-transparent text-[#62776A] hover:text-[#143427]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-[#2D6A4F]" />
+                  <span>{label}</span>
+                </button>
+              ))}
 
               <button
                 type="button"
@@ -594,6 +815,40 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             >
                               {p.stockStatus === 'in_stock' ? t.catalog.inStock : t.catalog.onDemand}
                             </button>
+
+                            {/* Show / hide on the site */}
+                            <button
+                              type="button"
+                              onClick={() => onUpdateProduct({ ...p, hidden: !p.hidden })}
+                              className={`p-1.5 rounded-lg transition-colors border ${p.hidden ? 'text-[#8A9A8F] border-[#D5E0D2] bg-[#F1F3F0]' : 'text-[#2D6A4F] border-[#D5E0D2] hover:bg-[#EEF4EC]'}`}
+                              title={p.hidden ? L('Сайтта жашырылган — көрсөтүү', 'Скрыт на сайте — показать') : L('Сайтта жашыруу', 'Скрыть на сайте')}
+                            >
+                              {p.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+
+                            {/* Order in the catalog */}
+                            {!searchFilter.trim() && categoryFilter === 'all' && (
+                              <div className="flex flex-col">
+                                <button
+                                  type="button"
+                                  disabled={products.indexOf(p) === 0}
+                                  onClick={() => onReorderProducts(moveItem(products, products.indexOf(p), -1))}
+                                  className="px-1 text-[#2D6A4F] disabled:opacity-30"
+                                  title={L('Жогору', 'Выше')}
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={products.indexOf(p) === products.length - 1}
+                                  onClick={() => onReorderProducts(moveItem(products, products.indexOf(p), 1))}
+                                  className="px-1 text-[#2D6A4F] disabled:opacity-30"
+                                  title={L('Төмөн', 'Ниже')}
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
 
                             {/* Edit Action */}
                             <button
@@ -841,6 +1096,112 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
                   </div>
 
+                  <ImageField
+                    value={formProduct.image || ''}
+                    onChange={(image) => setFormProduct({ ...formProduct, image })}
+                    password={password}
+                    L={L}
+                    label={L('Товардын сүрөтү', 'Фото товара')}
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Эски баа (акция үчүн)', 'Старая цена (для акции)')}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={formProduct.oldPrice || ''}
+                        placeholder={L('бош = акция жок', 'пусто = без акции')}
+                        onChange={(e) => setFormProduct({ ...formProduct, oldPrice: Number(e.target.value) || undefined })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Рейтинг (1–5)', 'Рейтинг (1–5)')}</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        step={0.1}
+                        value={formProduct.rating ?? ''}
+                        onChange={(e) => setFormProduct({ ...formProduct, rating: Number(e.target.value) })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Пикирлердин саны', 'Кол-во отзывов')}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={formProduct.reviewsCount ?? ''}
+                        onChange={(e) => setFormProduct({ ...formProduct, reviewsCount: Number(e.target.value) })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <label className="inline-flex items-center gap-2 font-semibold text-[#183325] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formProduct.hidden}
+                          onChange={(e) => setFormProduct({ ...formProduct, hidden: e.target.checked })}
+                          className="w-4 h-4 accent-[#1B4332]"
+                        />
+                        {L('Сайтта жашыруу', 'Скрыть на сайте')}
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Өзгөчөлүктөрү (RU, ар бири жаңы саптан)', 'Особенности (RU, каждая с новой строки)')}</label>
+                      <textarea
+                        rows={4}
+                        value={(formProduct.features || []).join('\n')}
+                        onChange={(e) => setFormProduct({ ...formProduct, features: e.target.value.split('\n') })}
+                        onBlur={(e) => setFormProduct({ ...formProduct, features: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Өзгөчөлүктөрү (KG, ар бири жаңы саптан)', 'Особенности (KG, каждая с новой строки)')}</label>
+                      <textarea
+                        rows={4}
+                        value={(formProduct.featuresKy || []).join('\n')}
+                        onChange={(e) => setFormProduct({ ...formProduct, featuresKy: e.target.value.split('\n') })}
+                        onBlur={(e) => setFormProduct({ ...formProduct, featuresKy: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Колдонуу ыкмасы (RU)', 'Способ применения (RU)')}</label>
+                      <textarea
+                        rows={2}
+                        value={formProduct.usage || ''}
+                        onChange={(e) => setFormProduct({ ...formProduct, usage: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Колдонуу ыкмасы (KG)', 'Способ применения (KG)')}</label>
+                      <textarea
+                        rows={2}
+                        value={formProduct.usageKy || ''}
+                        onChange={(e) => setFormProduct({ ...formProduct, usageKy: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block font-semibold text-[#183325] mb-1">{L('Сертификаттар (үтүр менен)', 'Сертификаты (через запятую)')}</label>
+                      <input
+                        type="text"
+                        value={(formProduct.certification || []).join(', ')}
+                        onChange={(e) => setFormProduct({ ...formProduct, certification: e.target.value.split(',').map((x) => x.trimStart()) })}
+                        onBlur={(e) => setFormProduct({ ...formProduct, certification: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })}
+                        className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex gap-3 pt-3">
                     <button
                       type="submit"
@@ -862,6 +1223,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* TAB 3: CUSTOMER ORDERS */}
               {activeTab === 'orders' && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-[#526659]">
+                      {L('Сайттан келген бардык буюртмалар.', 'Все заказы, оформленные на сайте.')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => loadOrders()}
+                      disabled={ordersLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#CBD7C7] bg-white rounded-lg text-xs font-semibold text-[#1B4332] disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${ordersLoading ? 'animate-spin' : ''}`} />
+                      <span>{L('Жаңыртуу', 'Обновить')}</span>
+                    </button>
+                  </div>
+                  {ordersError && (
+                    <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{ordersError}</p>
+                  )}
                   {orders.length === 0 ? (
                     <div className="text-center py-12 space-y-2 bg-[#FAFBF9] rounded-xl border border-[#DFE7DB] p-6">
                       <Package className="w-10 h-10 text-[#8DA093] mx-auto" />
@@ -898,7 +1276,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               {/* Order Status Selector */}
                               <select
                                 value={order.status || 'new'}
-                                onChange={(e) => onUpdateOrderStatus(order.id, e.target.value as Order['status'])}
+                                onChange={(e) => handleOrderStatus(order.id, e.target.value as Order['status'])}
                                 className={`text-[11px] font-semibold px-2 py-1 rounded-md border ${
                                   order.status === 'completed'
                                     ? 'bg-[#E3F2E6] text-[#245C3F] border-[#BCDDC3]'
@@ -927,8 +1305,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                   if (window.confirm(L('Бул буюртманы өчүрөсүзбү?', 'Удалить этот заказ?'))) {
-                                    onDeleteOrder(order.id);
-                                    showToast(L('Буюртма өчүрүлдү', 'Заказ удален'));
+                                    handleOrderDelete(order.id);
                                   }
                                 }}
                                 className="p-1 text-red-600 hover:bg-red-50 rounded"
@@ -1200,13 +1577,63 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                       <div>
                         <label className="block font-semibold text-[#183325] mb-1">
-                          {t.admin.adminPinLabel}
+                          {L('Иштөө тартиби (KG)', 'График работы (KG)')}
                         </label>
                         <input
                           type="text"
-                          value={localSettings.adminPin || ''}
-                          onChange={(e) => setLocalSettings({ ...localSettings, adminPin: e.target.value })}
-                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs font-mono font-bold text-[#143427]"
+                          value={localSettings.workingHoursKy || ''}
+                          onChange={(e) => setLocalSettings({ ...localSettings, workingHoursKy: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-[#E3ECE0]">
+                      <div>
+                        <label className="block font-semibold text-[#183325] mb-1">{L('Дүкөндүн аталышы', 'Название магазина')}</label>
+                        <input
+                          type="text"
+                          value={localSettings.storeName || ''}
+                          onChange={(e) => setLocalSettings({ ...localSettings, storeName: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#183325] mb-1">{L('Кыргызстан боюнча акысыз жеткирүү (сомдон)', 'Бесплатная доставка по КР (от, сом)')}</label>
+                        <input
+                          type="number"
+                          value={localSettings.freeDeliveryKgThreshold ?? 5000}
+                          onChange={(e) => setLocalSettings({ ...localSettings, freeDeliveryKgThreshold: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#183325] mb-1">Instagram</label>
+                        <input
+                          type="text"
+                          value={localSettings.instagram || ''}
+                          placeholder="@greenleaf_osh"
+                          onChange={(e) => setLocalSettings({ ...localSettings, instagram: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#183325] mb-1">Telegram</label>
+                        <input
+                          type="text"
+                          value={localSettings.telegram || ''}
+                          placeholder="@greenleaf_osh"
+                          onChange={(e) => setLocalSettings({ ...localSettings, telegram: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#183325] mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={localSettings.email || ''}
+                          onChange={(e) => setLocalSettings({ ...localSettings, email: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
                         />
                       </div>
                     </div>
@@ -1219,6 +1646,46 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {t.seller.saveSettingsBtn}
                   </button>
                 </form>
+              )}
+
+              {activeTab === 'settings' && (
+                <form onSubmit={handleChangePassword} className="mt-6 bg-[#FAFBF9] border border-[#DFE7DB] rounded-xl p-5 space-y-3 text-xs">
+                  <h4 className="font-serif font-bold text-base text-[#143427]">{L('Админкага кирүү сырсөзү', 'Пароль для входа в админку')}</h4>
+                  <p className="text-[#526659]">
+                    {L('Сырсөз дароо өзгөрөт, «Жарыялоо» баскычы керек эмес.', 'Пароль меняется сразу, кнопка «Опубликовать» не нужна.')}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={L('Жаңы сырсөз', 'Новый пароль')}
+                      className="flex-1 px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs"
+                    />
+                    <button type="submit" className="px-5 py-2 bg-[#1B4332] hover:bg-[#143427] text-white font-semibold rounded-lg">
+                      {L('Сырсөздү өзгөртүү', 'Сменить пароль')}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {activeTab === 'slides' && (
+                <SlidesEditor slides={slides} onChange={onUpdateSlides} password={password} L={L} />
+              )}
+
+              {activeTab === 'promo' && (
+                <PromotionsEditor
+                  promoCodes={promoCodes}
+                  announcement={announcement}
+                  onChangePromoCodes={onUpdatePromoCodes}
+                  onChangeAnnouncement={onUpdateAnnouncement}
+                  L={L}
+                />
+              )}
+
+              {activeTab === 'texts' && (
+                <TextsEditor heroTexts={heroTexts} onChange={onUpdateHeroTexts} language={language} L={L} />
               )}
 
               {/* TAB 6: ANALYTICS & BACKUP */}

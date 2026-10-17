@@ -11,7 +11,9 @@ interface CheckoutModalProps {
   sellerSettings: SellerSettings;
   language: Language;
   currency: Currency;
-  onOrderSuccess: (order: Order) => void;
+  promoCode: string;
+  discount: number;
+  onOrderSuccess: (order: Order) => Promise<{ order: Order; saved: boolean }>;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -21,6 +23,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   sellerSettings,
   language,
   currency,
+  promoCode,
+  discount,
   onOrderSuccess,
 }) => {
   const t = TRANSLATIONS[language];
@@ -33,6 +37,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notSavedOnServer, setNotSavedOnServer] = useState(false);
 
   useEscapeKey(isOpen, onClose);
 
@@ -43,20 +49,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const totalProfit = totalRetail - totalWholesale;
   const totalPv = Number(items.reduce((sum, i) => sum + i.product.pv * i.quantity, 0).toFixed(1));
 
-  // Delivery costs in Som (KGS)
+  // Delivery costs in Som (KGS), configured in the admin panel
+  const oshThreshold = sellerSettings.freeDeliveryThreshold ?? 3000;
+  const kgThreshold = sellerSettings.freeDeliveryKgThreshold ?? 5000;
+  const oshCost = totalRetail >= oshThreshold ? 0 : sellerSettings.deliveryOshCost ?? 150;
+  const kgCost = totalRetail >= kgThreshold ? 0 : sellerSettings.deliveryKgCost ?? 250;
   let deliveryCost = 0;
-  if (deliveryMethod === 'pickup') {
-    deliveryCost = 0;
-  } else if (deliveryMethod === 'courier_osh') {
-    deliveryCost = totalRetail >= 3000 ? 0 : 150;
+  if (deliveryMethod === 'courier_osh') {
+    deliveryCost = oshCost;
   } else if (deliveryMethod === 'kg_delivery') {
-    deliveryCost = totalRetail >= 5000 ? 0 : 250;
+    deliveryCost = kgCost;
   }
 
-  const finalTotal = totalRetail + deliveryCost;
+  const finalTotal = Math.max(0, totalRetail - discount) + deliveryCost;
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!name.trim() || !phone.trim() || phone.trim() === '+996') {
       setErrorMessage(language === 'ky' ? 'Сураныч, атыңызды жана телефон номериңизди жазыңыз.' : 'Пожалуйста, укажите ваше имя и номер телефона.');
@@ -86,13 +95,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       items: [...items],
       totalRetail: finalTotal,
       totalWholesale,
-      profit: totalProfit,
+      profit: totalProfit - discount,
       totalPv,
+      promoCode: promoCode || undefined,
+      discount,
+      deliveryCost,
       status: 'new',
     };
 
-    setConfirmedOrder(newOrder);
-    onOrderSuccess(newOrder);
+    setIsSubmitting(true);
+    const result = await onOrderSuccess(newOrder);
+    setIsSubmitting(false);
+    setNotSavedOnServer(!result.saved);
+    setConfirmedOrder(result.order);
   };
 
   const cleanSellerPhone = sellerSettings.whatsappPhone.replace(/[^0-9]/g, '');
@@ -144,6 +159,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </p>
               </div>
             </div>
+
+            {notSavedOnServer && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {language === 'ky'
+                  ? 'Буюртма сайтка жөнөтүлгөн жок (байланыш катасы). Төмөнкү баскыч менен WhatsApp аркылуу жөнөтүңүз.'
+                  : 'Не удалось отправить заказ на сайт (ошибка связи). Пожалуйста, отправьте его через WhatsApp кнопкой ниже.'}
+              </p>
+            )}
 
             {/* Receipt Summary */}
             <div className="bg-[#FAFBF9] border border-[#E3E9DF] rounded-xl p-5 space-y-4 text-xs">
@@ -240,7 +263,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <span>{t.checkout.courierOsh}</span>
                   </div>
                   <p className="text-[11px] text-[#697D70]">
-                    {totalRetail >= 3000 ? t.checkout.deliveryFree : formatPrice(150, currency)}
+                    {oshCost === 0 ? t.checkout.deliveryFree : formatPrice(oshCost, currency)}
                   </p>
                 </button>
 
@@ -258,7 +281,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <span>{t.checkout.kyrgyzstanDelivery}</span>
                   </div>
                   <p className="text-[11px] text-[#697D70]">
-                    {totalRetail >= 5000 ? t.checkout.deliveryFree : formatPrice(250, currency)}
+                    {kgCost === 0 ? t.checkout.deliveryFree : formatPrice(kgCost, currency)}
                   </p>
                 </button>
               </div>
@@ -338,6 +361,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span>{language === 'ky' ? 'Товарлар' : 'Товары'} ({items.reduce((acc, i) => acc + i.quantity, 0)} {t.cart.itemsCount}):</span>
                 <span className="font-mono tabular-nums">{formatPrice(totalRetail, currency)}</span>
               </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-[#2D6A4F] font-semibold">
+                  <span>{language === 'ky' ? 'Промокод' : 'Промокод'} {promoCode}:</span>
+                  <span className="font-mono tabular-nums">-{formatPrice(discount, currency)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-[#4D6254]">
                 <span>{language === 'ky' ? 'Жеткирүү:' : 'Доставка:'}</span>
                 <span className="font-mono tabular-nums">
@@ -352,9 +381,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#1B4332] hover:bg-[#143427] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors"
+              disabled={isSubmitting}
+              className="w-full py-3.5 bg-[#1B4332] hover:bg-[#143427] disabled:opacity-60 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors"
             >
-              {t.checkout.confirmBtn} ({formatPrice(finalTotal, currency)})
+              {isSubmitting ? (language === 'ky' ? 'Жөнөтүлүүдө...' : 'Отправка...') : `${t.checkout.confirmBtn} (${formatPrice(finalTotal, currency)})`}
             </button>
           </form>
         )}

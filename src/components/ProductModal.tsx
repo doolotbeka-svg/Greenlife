@@ -38,6 +38,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const productUsage = (language === 'ky' && product.usageKy) ? product.usageKy : product.usage;
 
   const totalPrice = product.retailPrice * quantity;
+  const onSale = !!product.oldPrice && product.oldPrice > product.retailPrice;
   const totalWholesale = product.wholesalePrice * quantity;
   const totalProfit = totalPrice - totalWholesale;
 
@@ -180,9 +181,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold font-mono text-[#143427] tabular-nums">
+                    <span className={`text-2xl font-bold font-mono tabular-nums ${onSale ? 'text-[#C2543A]' : 'text-[#143427]'}`}>
                       {formatPrice(totalPrice, currency)}
                     </span>
+                    {onSale && (
+                      <span className="text-sm text-[#8A9A8F] line-through font-mono tabular-nums">
+                        {formatPrice(product.oldPrice! * quantity, currency)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-[#2D6A4F] font-medium">
                     {product.stockStatus === 'in_stock' ? t.modal.shipToday : t.modal.shipOnDemand}

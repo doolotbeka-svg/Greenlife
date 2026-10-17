@@ -71,9 +71,8 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
         const profitB = b.retailPrice - b.wholesalePrice;
         return profitB - profitA;
       }
-      if (a.bestseller && !b.bestseller) return -1;
-      if (!a.bestseller && b.bestseller) return 1;
-      return b.rating - a.rating;
+      // Default order is the one set in the admin panel
+      return 0;
     });
   }, [products, selectedCategory, selectedBrand, stockOnly, searchQuery, sortBy]);
 

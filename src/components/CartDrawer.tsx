@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight, Tag, MessageSquare } from 'lucide-react';
-import { CartItem, SellerSettings } from '../types/store';
+import { CartItem, SellerSettings, PromoCode } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 import { useEscapeKey } from '../utils/useEscapeKey';
+import { findPromo } from '../utils/promo';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -14,6 +15,10 @@ interface CartDrawerProps {
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
   onOpenCheckout: () => void;
+  promoCodes: PromoCode[];
+  appliedPromoCode: string;
+  discount: number;
+  onApplyPromo: (code: string) => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -26,11 +31,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   onOpenCheckout,
+  promoCodes,
+  appliedPromoCode,
+  discount,
+  onApplyPromo,
 }) => {
   const t = TRANSLATIONS[language];
   const [promoCode, setPromoCode] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-  const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoError, setPromoError] = useState('');
 
   useEscapeKey(isOpen, onClose);
@@ -41,23 +48,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     (sum, item) => sum + item.product.retailPrice * item.quantity,
     0
   );
+  const promoDiscount = discount;
+  const appliedPromo = appliedPromoCode || null;
   const currentSubtotal = Math.max(0, totalRetail - promoDiscount);
 
-  const freeDeliveryThreshold = 3000; // 3000 сом
+  const freeDeliveryThreshold = sellerSettings.freeDeliveryThreshold || 3000;
   const freeDeliveryProgress = Math.min(100, Math.round((currentSubtotal / freeDeliveryThreshold) * 100));
   const remainingForFreeDelivery = Math.max(0, freeDeliveryThreshold - currentSubtotal);
 
   const handleApplyPromo = (e: React.FormEvent) => {
     e.preventDefault();
-    const code = promoCode.trim().toUpperCase();
-    if (code === 'ECO2026' || code === 'OSH' || code === 'GREENLEAF') {
-      setAppliedPromo(code);
-      setPromoDiscount(300); // 300 сом
-      setPromoCode('');
-      setPromoError('');
-    } else {
-      setPromoError(language === 'ky' ? 'Промокод табылган жок. ECO2026 кодун колдонуңуз (300 сом арзандатуу).' : 'Промокод не найден. Попробуйте промокод ECO2026 для скидки 300 сом.');
+    const promo = findPromo(promoCodes, promoCode);
+    if (!promo) {
+      setPromoError(language === 'ky' ? 'Промокод табылган жок же мөөнөтү бүткөн.' : 'Промокод не найден или срок его действия истёк.');
+      return;
     }
+    if (totalRetail < (promo.minOrder || 0)) {
+      setPromoError(language === 'ky'
+        ? `Бул промокод ${formatPrice(promo.minOrder, currency)} дан баштап иштейт.`
+        : `Этот промокод действует от ${formatPrice(promo.minOrder, currency)}.`);
+      return;
+    }
+    onApplyPromo(promo.code);
+    setPromoCode('');
+    setPromoError('');
   };
 
   // WhatsApp formatted order text
@@ -254,10 +268,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span>Промокод {appliedPromo} (-{formatPrice(promoDiscount, currency)})</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setAppliedPromo(null);
-                      setPromoDiscount(0);
-                    }}
+                    onClick={() => onApplyPromo('')}
                     className="text-[#556F5E] hover:text-[#C53030]"
                   >
                     <X className="w-3.5 h-3.5" />
