@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, MessageCircle, PackageCheck, Sliders, Globe, MapPin, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, MessageCircle, PackageCheck, Sliders, Globe, MapPin } from 'lucide-react';
 import { SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 
@@ -15,7 +15,6 @@ interface HeaderProps {
   onToggleSellerMode: () => void;
   onOpenCart: () => void;
   onOpenSellerPanel: () => void;
-  onOpenAdmin: () => void;
   onOpenOrders: () => void;
   ordersCount: number;
 }
@@ -32,7 +31,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSellerMode,
   onOpenCart,
   onOpenSellerPanel,
-  onOpenAdmin,
   onOpenOrders,
   ordersCount,
 }) => {
@@ -141,16 +139,6 @@ export const Header: React.FC<HeaderProps> = ({
             ))}
           </div>
 
-          {/* Admin Panel Button */}
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap bg-[#1B4332] text-white hover:bg-[#143427] shadow-xs"
-            title={language === 'ky' ? 'Greenleaf администратор панели (Ош)' : 'Панель администратора Greenleaf (Ош)'}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-[#74C69D]" />
-            <span className="hidden md:inline xl:hidden 2xl:inline">{t.admin.button}</span>
-          </button>
 
           {/* Seller / Distributor Mode Toggle */}
           <button

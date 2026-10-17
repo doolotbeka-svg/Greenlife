@@ -27,6 +27,8 @@ import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
+  // Rendered as the standalone #admin page instead of over the store
+  asPage?: boolean;
   onClose: () => void;
   products: Product[];
   orders: Order[];
@@ -45,6 +47,7 @@ interface AdminPanelModalProps {
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
+  asPage = false,
   onClose,
   products,
   orders,
@@ -120,7 +123,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = sellerSettings.adminPin || '2026';
+    const correctPin = sellerSettings.adminPin || '1995';
     if (enteredPin.trim() === correctPin) {
       setIsAuthenticated(true);
       setPinError(false);
@@ -268,7 +271,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+    <div className={`fixed inset-0 z-50 overflow-y-auto ${asPage ? 'bg-[#EEF2EC]' : 'bg-black/65 backdrop-blur-xs'} flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200`}>
       <div 
         className="relative bg-white rounded-2xl max-w-5xl w-full overflow-hidden shadow-2xl border border-[#DCE4D8] my-4 text-left flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
@@ -1201,7 +1204,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </label>
                         <input
                           type="text"
-                          value={localSettings.adminPin || '2026'}
+                          value={localSettings.adminPin || ''}
                           onChange={(e) => setLocalSettings({ ...localSettings, adminPin: e.target.value })}
                           className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg text-xs font-mono font-bold text-[#143427]"
                         />
