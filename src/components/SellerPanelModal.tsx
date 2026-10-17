@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Store, Check, Package, MessageSquare } from 'lucide-react';
 import { Product, Order, SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface SellerPanelModalProps {
   isOpen: boolean;
@@ -32,6 +33,8 @@ export const SellerPanelModal: React.FC<SellerPanelModalProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'settings'>('overview');
   const [localSettings, setLocalSettings] = useState<SellerSettings>(sellerSettings);
   const [savedAlert, setSavedAlert] = useState(false);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

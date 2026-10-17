@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Check, ShoppingBag, Star, ShieldCheck, Share2, MessageSquare } from 'lucide-react';
 import { Product, SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface ProductModalProps {
   product: Product | null;
@@ -24,6 +25,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 }) => {
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+
+  useEscapeKey(!!product, onClose);
 
   if (!product) return null;
 
@@ -218,7 +221,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     onAddToCart(product, quantity);
                     onClose();
                   }}
-                  className="w-full sm:flex-1 py-3 px-4 bg-[#1B4332] hover:bg-[#143427] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+                  className="w-full sm:flex-1 min-w-0 py-3 px-4 bg-[#1B4332] hover:bg-[#143427] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span>{t.modal.addToCartQty} ({quantity})</span>
@@ -229,9 +232,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     href={waOrderUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full sm:w-auto py-3 px-4 bg-[#25D366] hover:bg-[#20BA5A] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                    className="w-full sm:flex-1 min-w-0 py-3 px-4 bg-[#25D366] hover:bg-[#20BA5A] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 text-center"
                   >
-                    <MessageSquare className="w-4 h-4 fill-current" />
+                    <MessageSquare className="w-4 h-4 fill-current shrink-0" />
                     <span>{t.modal.buyInWa}</span>
                   </a>
                 )}

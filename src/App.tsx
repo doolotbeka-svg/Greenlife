@@ -20,7 +20,7 @@ import { AboutCompany } from './components/AboutCompany';
 import { StoreLocationMap } from './components/StoreLocationMap';
 import { AIChatBot } from './components/AIChatBot';
 import { Footer } from './components/Footer';
-import { Check, Sliders, ShieldCheck } from 'lucide-react';
+import { Check, Sliders } from 'lucide-react';
 import { safeStorage } from './utils/storage';
 
 const DEFAULT_SELLER_SETTINGS: SellerSettings = {
@@ -33,11 +33,11 @@ const DEFAULT_SELLER_SETTINGS: SellerSettings = {
   globalMarkupPercent: 60,
   currency: 'KGS',
   language: 'ky',
-  adminPin: '2026',
+  adminPin: '1995',
   deliveryOshCost: 150,
   deliveryKgCost: 250,
   freeDeliveryThreshold: 3000,
-  workingHours: '09:00 - 20:00 (күн сайын / без выходных)',
+  workingHours: '09:00 - 20:00 (без выходных)',
   workingHoursKy: '09:00 - 20:00 (күн сайын)',
 };
 
@@ -46,7 +46,11 @@ export default function App() {
   const [sellerSettings, setSellerSettings] = useState<SellerSettings>(() => {
     try {
       const saved = safeStorage.getItem('greenleaf_reseller_settings_kg');
-      return saved ? JSON.parse(saved) : DEFAULT_SELLER_SETTINGS;
+      if (!saved) return DEFAULT_SELLER_SETTINGS;
+      const parsed: SellerSettings = JSON.parse(saved);
+      // Settings saved before the PIN change still carry the old default
+      if (!parsed.adminPin || parsed.adminPin === '2026') parsed.adminPin = DEFAULT_SELLER_SETTINGS.adminPin;
+      return parsed;
     } catch {
       return DEFAULT_SELLER_SETTINGS;
     }
@@ -115,7 +119,8 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSellerPanelOpen, setIsSellerPanelOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  // Admin panel lives on a hidden page: <site>/#admin
+  const [isAdminPage, setIsAdminPage] = useState(() => window.location.hash === '#admin');
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [hasMapsQuotaWarning, setHasMapsQuotaWarning] = useState(false);
@@ -168,6 +173,17 @@ export default function App() {
   useEffect(() => {
     safeStorage.setItem('greenleaf_orders_kg', JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    const handleHashChange = () => setIsAdminPage(window.location.hash === '#admin');
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const closeAdminPage = () => {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setIsAdminPage(false);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -281,6 +297,31 @@ export default function App() {
     0
   );
 
+  if (isAdminPage) {
+    return (
+      <div className="min-h-screen bg-[#EEF2EC]">
+        <AdminPanelModal
+          isOpen
+          asPage
+          onClose={closeAdminPage}
+          products={products}
+          orders={orders}
+          sellerSettings={sellerSettings}
+          language={language}
+          currency={currency}
+          onUpdateSettings={setSellerSettings}
+          onUpdateProduct={handleUpdateProduct}
+          onAddProduct={handleAddProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onResetCatalog={handleResetCatalog}
+          onBulkMarkupChange={handleBulkMarkupChange}
+          onUpdateOrderStatus={handleUpdateOrderStatus}
+          onDeleteOrder={handleDeleteOrder}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAF7] text-[#1E2922]">
       {/* Google Maps Quota Warning Banner (if demo quota reached) */}
@@ -328,15 +369,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setIsAdminOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#2D6A4F] hover:bg-[#388563] text-white text-[11px] font-semibold transition-colors shadow-xs"
-              title="Панель администратора (PIN: 2026)"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#74C69D]" />
-              <span>{t.admin.button} (PIN: 2026)</span>
-            </button>
 
             <button
               type="button"
@@ -375,7 +407,6 @@ export default function App() {
         onToggleSellerMode={handleToggleSellerMode}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenSellerPanel={() => setIsSellerPanelOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
         onOpenOrders={() => setIsOrdersOpen(true)}
         ordersCount={orders.length}
       />
@@ -418,7 +449,6 @@ export default function App() {
         sellerSettings={sellerSettings}
         language={language}
         onOpenSellerPanel={() => setIsSellerPanelOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
       />
 
       {/* AI Assistant Chatbot */}
@@ -465,24 +495,6 @@ export default function App() {
         onOrderSuccess={handleOrderSuccess}
       />
 
-      {/* Master Admin Panel Modal (full catalog, prices, products, orders, settings) */}
-      <AdminPanelModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        products={products}
-        orders={orders}
-        sellerSettings={sellerSettings}
-        language={language}
-        currency={currency}
-        onUpdateSettings={setSellerSettings}
-        onUpdateProduct={handleUpdateProduct}
-        onAddProduct={handleAddProduct}
-        onDeleteProduct={handleDeleteProduct}
-        onResetCatalog={handleResetCatalog}
-        onBulkMarkupChange={handleBulkMarkupChange}
-        onUpdateOrderStatus={handleUpdateOrderStatus}
-        onDeleteOrder={handleDeleteOrder}
-      />
 
       {/* Quick Reseller Margin Modal */}
       <SellerPanelModal

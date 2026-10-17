@@ -157,7 +157,7 @@ export const AboutCompany: React.FC<AboutCompanyProps> = ({ sellerSettings, lang
               href={waFranchiseUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold text-xs sm:text-sm rounded-lg transition-colors shadow-sm shrink-0 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3.5 bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold text-xs sm:text-sm rounded-lg transition-colors shadow-sm shrink-0 text-center sm:whitespace-nowrap"
             >
               <MessageSquare className="w-4 h-4 fill-current" />
               <span>{t.about.wholesaleBtn}</span>

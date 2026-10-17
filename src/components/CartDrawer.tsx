@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight, Tag, MessageSquare } from 'lucide-react';
 import { CartItem, SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
+import { useEscapeKey } from '../utils/useEscapeKey';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -30,10 +31,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoError, setPromoError] = useState('');
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
-
-  const [promoError, setPromoError] = useState('');
 
   const totalRetail = items.reduce(
     (sum, item) => sum + item.product.retailPrice * item.quantity,

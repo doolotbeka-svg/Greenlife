@@ -7,10 +7,9 @@ interface FooterProps {
   sellerSettings: SellerSettings;
   language: Language;
   onOpenSellerPanel: () => void;
-  onOpenAdmin: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpenSellerPanel, onOpenAdmin }) => {
+export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpenSellerPanel }) => {
   const t = TRANSLATIONS[language];
   const cleanPhone = sellerSettings.whatsappPhone.replace(/[^0-9]/g, '');
   const waUrl = cleanPhone
@@ -79,14 +78,6 @@ export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpen
               </div>
 
               <div className="pt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={onOpenAdmin}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1B4332] hover:bg-[#235841] text-[#A6E8BF] hover:text-white rounded-lg transition-colors border border-[#2D6A4F] text-[11px] font-semibold"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#74C69D]" />
-                  <span>{t.admin.button} (PIN: 2026)</span>
-                </button>
 
                 <button
                   type="button"
