@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, MapPin, ShieldCheck, Sliders, Mail, Instagram, Send } from 'lucide-react';
+import { MessageSquare, MapPin, ShieldCheck, Mail, Instagram, Send } from 'lucide-react';
 
 // Accepts a full link or just a username/handle
 const socialUrl = (value: string, base: string) =>
@@ -10,10 +10,9 @@ import { Language, TRANSLATIONS } from '../i18n/translations';
 interface FooterProps {
   sellerSettings: SellerSettings;
   language: Language;
-  onOpenSellerPanel: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpenSellerPanel }) => {
+export const Footer: React.FC<FooterProps> = ({ sellerSettings, language }) => {
   const t = TRANSLATIONS[language];
   const cleanPhone = sellerSettings.whatsappPhone.replace(/[^0-9]/g, '');
   const waUrl = cleanPhone
@@ -105,17 +104,6 @@ export const Footer: React.FC<FooterProps> = ({ sellerSettings, language, onOpen
                 </div>
               )}
 
-              <div className="pt-2 flex flex-wrap gap-2">
-
-                <button
-                  type="button"
-                  onClick={onOpenSellerPanel}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1F382A] hover:bg-[#284937] text-[#A6CDB3] hover:text-white rounded-lg transition-colors border border-[#2D503C] text-[11px]"
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>{t.header.sellerPanel}</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

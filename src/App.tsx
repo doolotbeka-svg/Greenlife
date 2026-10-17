@@ -13,14 +13,13 @@ import { CatalogSection } from './components/CatalogSection';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
-import { SellerPanelModal } from './components/SellerPanelModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { OrdersModal } from './components/OrdersModal';
 import { AboutCompany } from './components/AboutCompany';
 import { StoreLocationMap } from './components/StoreLocationMap';
 import { AIChatBot } from './components/AIChatBot';
 import { Footer } from './components/Footer';
-import { Check, Sliders } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { safeStorage } from './utils/storage';
 import { fetchContent, submitOrder } from './utils/api';
 import { findPromo, promoDiscount } from './utils/promo';
@@ -72,15 +71,6 @@ export default function App() {
 
   const [products, setProductsState] = useState<Product[]>(initialContent.products);
 
-  // Seller mode toggle (displays wholesale costs & profit margin)
-  const [isSellerMode, setIsSellerMode] = useState<boolean>(() => {
-    try {
-      const saved = safeStorage.getItem('greenleaf_is_seller_mode_kg');
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
-  });
 
   // Cart & Orders
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
@@ -105,7 +95,6 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isSellerPanelOpen, setIsSellerPanelOpen] = useState(false);
   // Admin panel lives on a hidden page: <site>/#admin
   const [isAdminPage, setIsAdminPage] = useState(() => window.location.hash === '#admin');
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
@@ -190,10 +179,6 @@ export default function App() {
       ? 'Greenleaf Ош — Түп нуска эко-продукция (Кыргызстан)'
       : 'Greenleaf Ош — Оригинальная эко-продукция от поставщика (Кыргызстан)';
   }, [language]);
-
-  useEffect(() => {
-    safeStorage.setItem('greenleaf_is_seller_mode_kg', JSON.stringify(isSellerMode));
-  }, [isSellerMode]);
 
   useEffect(() => {
     safeStorage.setItem('greenleaf_cart_kg', JSON.stringify(cartItems));
@@ -291,14 +276,6 @@ export default function App() {
     );
     setSellerSettings((prev) => ({ ...prev, globalMarkupPercent: markupPercent }));
     showToast(`+${markupPercent}% ${language === 'ky' ? 'наценка кошулду' : 'наценка применена'}`);
-  };
-
-  const handleToggleSellerMode = () => {
-    setIsSellerMode((prev) => {
-      const next = !prev;
-      showToast(next ? (language === 'ky' ? 'Сатуучу режими күйдү (закупка жана киреше)' : 'Режим продавца активен') : (language === 'ky' ? 'Кардар режими' : 'Режим покупателя'));
-      return next;
-    });
   };
 
   // Sends the order to the shop; if the server is unreachable the order stays local and
@@ -426,29 +403,6 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-
-            <button
-              type="button"
-              onClick={handleToggleSellerMode}
-              className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
-                isSellerMode
-                  ? 'bg-white text-[#1B4332]'
-                  : 'bg-[#2D6A4F] text-white hover:bg-[#388563]'
-              }`}
-            >
-              {isSellerMode ? `✓ ${t.banner.sellerModeBtn} (On)` : t.banner.sellerModeBtn}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsSellerPanelOpen(true)}
-              className="inline-flex items-center gap-1 text-[11px] text-[#D8F3DC] hover:text-white underline underline-offset-2"
-            >
-              <Sliders className="w-3 h-3" />
-              <span>{t.banner.settingsBtn}</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -457,14 +411,11 @@ export default function App() {
         cartCount={totalCartCount}
         totalCartAmount={totalCartAmount}
         sellerSettings={sellerSettings}
-        isSellerMode={isSellerMode}
         language={language}
         currency={currency}
         onLanguageChange={setLanguage}
         onCurrencyChange={setCurrency}
-        onToggleSellerMode={handleToggleSellerMode}
         onOpenCart={() => setIsCartOpen(true)}
-        onOpenSellerPanel={() => setIsSellerPanelOpen(true)}
         onOpenOrders={() => setIsOrdersOpen(true)}
         ordersCount={orders.length}
       />
@@ -482,7 +433,7 @@ export default function App() {
         {/* Catalog Grid */}
         <CatalogSection
           products={visibleProducts}
-          isSellerMode={isSellerMode}
+          isSellerMode={false}
           sellerSettings={sellerSettings}
           language={language}
           currency={currency}
@@ -508,7 +459,6 @@ export default function App() {
       <Footer
         sellerSettings={sellerSettings}
         language={language}
-        onOpenSellerPanel={() => setIsSellerPanelOpen(true)}
       />
 
       {/* AI Assistant Chatbot */}
@@ -520,7 +470,7 @@ export default function App() {
       {/* Product Detail Modal */}
       <ProductModal
         product={selectedProduct}
-        isSellerMode={isSellerMode}
+        isSellerMode={false}
         sellerSettings={sellerSettings}
         language={language}
         currency={currency}
@@ -562,19 +512,6 @@ export default function App() {
       />
 
 
-      {/* Quick Reseller Margin Modal */}
-      <SellerPanelModal
-        isOpen={isSellerPanelOpen}
-        onClose={() => setIsSellerPanelOpen(false)}
-        products={products}
-        orders={orders}
-        sellerSettings={sellerSettings}
-        language={language}
-        currency={currency}
-        onUpdateSettings={setSellerSettings}
-        onUpdateProduct={handleUpdateProduct}
-        onBulkMarkupChange={handleBulkMarkupChange}
-      />
 
       {/* Customer Orders Modal */}
       <OrdersModal

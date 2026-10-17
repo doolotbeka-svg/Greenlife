@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, MessageCircle, PackageCheck, Sliders, Globe, MapPin } from 'lucide-react';
+import { ShoppingBag, MessageCircle, PackageCheck, Globe, MapPin } from 'lucide-react';
 import { SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 
@@ -7,14 +7,11 @@ interface HeaderProps {
   cartCount: number;
   totalCartAmount: number;
   sellerSettings: SellerSettings;
-  isSellerMode: boolean;
   language: Language;
   currency: Currency;
   onLanguageChange: (lang: Language) => void;
   onCurrencyChange: (curr: Currency) => void;
-  onToggleSellerMode: () => void;
   onOpenCart: () => void;
-  onOpenSellerPanel: () => void;
   onOpenOrders: () => void;
   ordersCount: number;
 }
@@ -23,14 +20,11 @@ export const Header: React.FC<HeaderProps> = ({
   cartCount,
   totalCartAmount,
   sellerSettings,
-  isSellerMode,
   language,
   currency,
   onLanguageChange,
   onCurrencyChange,
-  onToggleSellerMode,
   onOpenCart,
-  onOpenSellerPanel,
   onOpenOrders,
   ordersCount,
 }) => {
@@ -140,20 +134,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
 
-          {/* Seller / Distributor Mode Toggle */}
-          <button
-            type="button"
-            onClick={onOpenSellerPanel}
-            className={`max-[359px]:hidden flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              isSellerMode
-                ? 'bg-[#1B4332] text-white shadow-xs'
-                : 'bg-[#EEF4EC] text-[#245C3F] hover:bg-[#E2EDE0] border border-[#CDE3CE]'
-            }`}
-            title="Панель реселлера / бааларды башкаруу"
-          >
-            <Sliders className="w-3.5 h-3.5 text-[#2D6A4F]" />
-            <span className="hidden lg:inline xl:hidden 2xl:inline">{t.header.sellerPanel}</span>
-          </button>
 
           {/* Orders tracker button */}
           {ordersCount > 0 && (
