@@ -127,3 +127,9 @@ export async function updateOrderStatus(id: string, status: Order['status'], pas
 export async function deleteOrder(id: string, password: string): Promise<void> {
   await request(`/orders/${encodeURIComponent(id)}`, { method: 'DELETE' }, password);
 }
+
+// Public key to give to Finik; the server generates the key pair the first time
+export async function fetchFinikPublicKey(password: string): Promise<string> {
+  const { publicKey } = await request<{ publicKey: string }>('/admin/finik-key', {}, password);
+  return publicKey;
+}

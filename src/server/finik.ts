@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { readJson, writeJson } from './storage.js';
 
 // Finik (averspay.kg) acquiring API. Requests are signed with our RSA private key; Finik signs
 // webhooks with its own key, which we verify with the public key Finik gives us.
@@ -23,9 +24,38 @@ export function finikConfig() {
   };
 }
 
-export function isFinikConfigured(): boolean {
+// Our signing key: FINIK_PRIVATE_KEY if set, otherwise a key pair the server generated itself and
+// keeps in private storage, so the private key never has to be copied anywhere by hand
+const KEY_PATH = 'config/finik-key.json';
+let cachedKey: string | null = null;
+
+async function storedPrivateKey(create: boolean): Promise<string> {
+  if (cachedKey) return cachedKey;
+  const saved = await readJson<{ privateKey: string }>(KEY_PATH);
+  if (saved?.privateKey) return (cachedKey = saved.privateKey);
+  if (!create) return '';
+  const { privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  await writeJson(KEY_PATH, { privateKey, createdAt: new Date().toISOString() });
+  return (cachedKey = privateKey);
+}
+
+async function signingKey(create = false): Promise<string> {
+  return finikConfig().privateKey || (await storedPrivateKey(create));
+}
+
+// Public half of our signing key, to send to Finik; generates the pair on first use
+export async function finikShopPublicKey(): Promise<string> {
+  const privateKey = await signingKey(true);
+  return crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString();
+}
+
+export async function isFinikConfigured(): Promise<boolean> {
   const c = finikConfig();
-  return !!(c.apiKey && c.accountId && c.privateKey && c.publicKey);
+  return !!(c.apiKey && c.accountId && c.publicKey && (await signingKey()));
 }
 
 // Same canonical string as Finik's own signer (@mancho.devs/authorizer)
@@ -90,6 +120,7 @@ export interface CreatePaymentInput {
 // Returns the Finik payment page URL for the shopper
 export async function createFinikPayment(input: CreatePaymentInput): Promise<string> {
   const c = finikConfig();
+  const privateKey = await signingKey();
   const url = new URL(c.apiUrl);
   const body = {
     Amount: Math.round(input.amount * 100) / 100,
@@ -107,7 +138,7 @@ export async function createFinikPayment(input: CreatePaymentInput): Promise<str
   const timestamp = Date.now().toString();
   const signature = signFinik(
     canonicalString('POST', url.pathname, { Host: url.host, 'x-api-key': c.apiKey, 'x-api-timestamp': timestamp }, body),
-    c.privateKey
+    privateKey
   );
 
   const res = await fetch(url, {

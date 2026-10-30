@@ -33,7 +33,7 @@ import { Product, Order, SellerSettings, ProductCategory, BrandName, StockStatus
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 import { INITIAL_PRODUCTS, IMAGES } from '../data/products';
 import { useEscapeKey } from '../utils/useEscapeKey';
-import { adminLogin, adminSession, saveContent, fetchOrders, updateOrderStatus, deleteOrder, changeAdminPassword, ApiError } from '../utils/api';
+import { adminLogin, adminSession, saveContent, fetchOrders, updateOrderStatus, deleteOrder, changeAdminPassword, fetchFinikPublicKey, ApiError } from '../utils/api';
 import { ImageField, SlidesEditor, PromotionsEditor, TextsEditor, moveItem } from './AdminContentEditors';
 
 interface AdminPanelModalProps {
@@ -118,6 +118,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [ordersError, setOrdersError] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [finikPublicKey, setFinikPublicKey] = useState('');
+  const [finikKeyCopied, setFinikKeyCopied] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'products' | 'form' | 'orders' | 'pricing' | 'settings' | 'analytics' | 'slides' | 'promo' | 'texts'>('products');
@@ -1645,6 +1647,50 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 'Ключи Finik на сервере ещё не заданы, поэтому онлайн-оплата пока не показывается.'
                               )}
                         </p>
+                        <div className="pt-2 space-y-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                setFinikPublicKey(await fetchFinikPublicKey(password));
+                              } catch {
+                                showToast(L('Ачкычты алуу мүмкүн болгон жок.', 'Не удалось получить ключ.'));
+                              }
+                            }}
+                            className="px-3 py-1.5 border border-[#CBD7C7] bg-[#F8FAF7] hover:bg-[#EEF4EC] rounded-lg text-[11px] font-semibold text-[#1B4332]"
+                          >
+                            {L('Finik үчүн ачык ачкычты көрсөтүү', 'Показать публичный ключ для Finik')}
+                          </button>
+                          {finikPublicKey && (
+                            <>
+                              <p className="text-[11px] text-[#526659]">
+                                {L(
+                                  'Бул ачык ачкычты Finik кызматына жөнөтүңүз. Жабык ачкыч серверде гана сакталат.',
+                                  'Отправьте этот публичный ключ в Finik. Закрытый ключ хранится только на сервере.'
+                                )}
+                              </p>
+                              <textarea
+                                readOnly
+                                rows={10}
+                                value={finikPublicKey}
+                                onFocus={(e) => e.target.select()}
+                                className="w-full px-3 py-2 bg-[#F8FAF7] border border-[#CBD7C7] rounded-lg font-mono text-[10px]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(finikPublicKey).then(() => {
+                                    setFinikKeyCopied(true);
+                                    window.setTimeout(() => setFinikKeyCopied(false), 2000);
+                                  });
+                                }}
+                                className="px-3 py-1.5 bg-[#1B4332] hover:bg-[#143427] text-white rounded-lg text-[11px] font-semibold"
+                              >
+                                {finikKeyCopied ? L('Көчүрүлдү!', 'Скопировано!') : L('Көчүрүү', 'Копировать')}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="block font-semibold text-[#183325] mb-1">Instagram</label>
