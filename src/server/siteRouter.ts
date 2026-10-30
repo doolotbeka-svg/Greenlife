@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import type { Order, SiteContent } from '../types/store';
 import { normalizeContent, DEFAULT_CONTENT } from '../data/defaultContent.js';
-import { createFinikPayment, isFinikConfigured, parseFinikWebhook } from './finik.js';
+import { createFinikPayment, isFinikConfigured, parseFinikWebhook, finikShopPublicKey } from './finik.js';
 import { priceOrder, PricingError } from './pricing.js';
 import { readJson, writeJson, saveImage, openFile, isAllowedImageType, listPaths, removePath } from './storage.js';
 
@@ -72,8 +72,8 @@ async function loadContent(): Promise<SiteContent> {
   return saved ? normalizeContent(saved) : DEFAULT_CONTENT;
 }
 
-function onlinePaymentAvailable(content: SiteContent): boolean {
-  return isFinikConfigured() && content.settings.onlinePaymentEnabled !== false;
+async function onlinePaymentAvailable(content: SiteContent): Promise<boolean> {
+  return content.settings.onlinePaymentEnabled !== false && (await isFinikConfigured());
 }
 
 // Public address of the site, for the links we hand to Finik
@@ -95,7 +95,7 @@ export function createSiteRouter() {
       const saved = await readJson<SiteContent>(CONTENT_PATH);
       res.set('Cache-Control', 'no-store');
       const content = saved ? normalizeContent(saved) : DEFAULT_CONTENT;
-      res.json({ content: saved ? content : null, onlinePayment: onlinePaymentAvailable(content), finikConfigured: isFinikConfigured() });
+      res.json({ content: saved ? content : null, onlinePayment: await onlinePaymentAvailable(content), finikConfigured: await isFinikConfigured() });
     } catch (err) {
       next(err);
     }
@@ -114,6 +114,16 @@ export function createSiteRouter() {
 
   router.post('/admin/login', requireAdmin, (_req, res) => {
     res.json({ ok: true });
+  });
+
+  // Public key to register with Finik; the server creates the key pair on first request
+  router.get('/admin/finik-key', requireAdmin, async (_req, res, next) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json({ publicKey: await finikShopPublicKey() });
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.post('/admin/password', requireAdmin, express.json(), async (req, res, next) => {
@@ -182,7 +192,7 @@ export function createSiteRouter() {
       const content = await loadContent();
       const deliveryMethod = ['pickup', 'courier_osh', 'kg_delivery'].includes(o.deliveryMethod) ? o.deliveryMethod : 'pickup';
       const wantsOnline = o.paymentMethod === 'online';
-      if (wantsOnline && !onlinePaymentAvailable(content)) {
+      if (wantsOnline && !(await onlinePaymentAvailable(content))) {
         res.status(400).json({ error: 'online_payment_unavailable' });
         return;
       }
