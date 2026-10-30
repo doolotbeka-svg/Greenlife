@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, MapPin, Truck, MessageSquare } from 'lucide-react';
+import { X, CheckCircle2, MapPin, Truck, MessageSquare, CreditCard, Wallet } from 'lucide-react';
 import { CartItem, Order, SellerSettings } from '../types/store';
 import { Language, Currency, TRANSLATIONS, formatPrice } from '../i18n/translations';
 import { useEscapeKey } from '../utils/useEscapeKey';
@@ -13,7 +13,8 @@ interface CheckoutModalProps {
   currency: Currency;
   promoCode: string;
   discount: number;
-  onOrderSuccess: (order: Order) => Promise<{ order: Order; saved: boolean }>;
+  onlinePaymentAvailable: boolean;
+  onOrderSuccess: (order: Order) => Promise<{ order: Order; saved: boolean; paymentError: boolean; redirecting: boolean }>;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -25,6 +26,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   currency,
   promoCode,
   discount,
+  onlinePaymentAvailable,
   onOrderSuccess,
 }) => {
   const t = TRANSLATIONS[language];
@@ -39,6 +41,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notSavedOnServer, setNotSavedOnServer] = useState(false);
+  const [payOnline, setPayOnline] = useState(false);
+  const [onlinePaymentFailed, setOnlinePaymentFailed] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEscapeKey(isOpen, onClose);
 
@@ -91,7 +96,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ? (language === 'ky' ? `Ош ш. кампадан алып кетүү (${sellerSettings.sellerAddress || 'Кыргызстан, Ош ш.'})` : `Самовывоз со склада в г. Ош (${sellerSettings.sellerAddress || 'г. Ош'})`)
         : address,
       deliveryMethod,
-      paymentMethod: 'card_on_delivery',
+      paymentMethod: payOnline && onlinePaymentAvailable ? 'online' : 'card_on_delivery',
       items: [...items],
       totalRetail: finalTotal,
       totalWholesale,
@@ -105,8 +110,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     setIsSubmitting(true);
     const result = await onOrderSuccess(newOrder);
+    if (result.redirecting) {
+      // The browser is leaving for the Finik payment page
+      setIsRedirecting(true);
+      return;
+    }
     setIsSubmitting(false);
     setNotSavedOnServer(!result.saved);
+    setOnlinePaymentFailed(newOrder.paymentMethod === 'online' && result.paymentError);
     setConfirmedOrder(result.order);
   };
 
@@ -160,7 +171,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {notSavedOnServer && (
+            {onlinePaymentFailed && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {language === 'ky'
+                  ? 'Онлайн төлөмгө өтүү мүмкүн болгон жок. Буюртма сакталды: алганда төлөсөңүз болот же WhatsApp аркылуу жазыңыз.'
+                  : 'Не удалось перейти к онлайн-оплате. Заказ сохранён: можно оплатить при получении или написать нам в WhatsApp.'}
+              </p>
+            )}
+
+            {notSavedOnServer && !onlinePaymentFailed && (
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 {language === 'ky'
                   ? 'Буюртма сайтка жөнөтүлгөн жок (байланыш катасы). Төмөнкү баскыч менен WhatsApp аркылуу жөнөтүңүз.'
@@ -355,6 +374,47 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
             </div>
 
+            {/* Payment method: Finik appears only when the shop has it set up */}
+            {onlinePaymentAvailable && (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-[#183325] uppercase tracking-wider">
+                  {language === 'ky' ? 'Төлөө ыкмасы' : 'Способ оплаты'}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPayOnline(true)}
+                    className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                      payOnline ? 'border-[#2D6A4F] bg-[#F1F7F2] text-[#143427] font-semibold' : 'border-[#D5DFD1] hover:bg-[#FAFBF9] text-[#4E6254]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1 text-[#2D6A4F]">
+                      <CreditCard className="w-4 h-4" />
+                      <span>{language === 'ky' ? 'Онлайн төлөө (Finik)' : 'Оплатить онлайн (Finik)'}</span>
+                    </div>
+                    <p className="text-[11px] text-[#697D70]">
+                      {language === 'ky' ? 'QR, банк тиркемелери, Visa картасы' : 'QR, банковские приложения, карта Visa'}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayOnline(false)}
+                    className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                      !payOnline ? 'border-[#2D6A4F] bg-[#F1F7F2] text-[#143427] font-semibold' : 'border-[#D5DFD1] hover:bg-[#FAFBF9] text-[#4E6254]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1 text-[#2D6A4F]">
+                      <Wallet className="w-4 h-4" />
+                      <span>{language === 'ky' ? 'Алганда төлөө' : 'Оплата при получении'}</span>
+                    </div>
+                    <p className="text-[11px] text-[#697D70]">
+                      {language === 'ky' ? 'Накталай же карта менен' : 'Наличными или картой'}
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Order Total */}
             <div className="bg-[#F8FAF7] border border-[#E3EAE0] rounded-xl p-4 space-y-2 text-xs">
               <div className="flex justify-between text-[#4D6254]">
@@ -374,7 +434,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </span>
               </div>
               <div className="flex justify-between text-base font-bold text-[#143427] pt-2 border-t border-[#DFE7DB]">
-                <span>{t.checkout.totalToPay}</span>
+                <span>{payOnline && onlinePaymentAvailable ? (language === 'ky' ? 'Онлайн төлөнө турган сумма:' : 'Итого к оплате онлайн:') : t.checkout.totalToPay}</span>
                 <span className="font-mono text-lg tabular-nums">{formatPrice(finalTotal, currency)}</span>
               </div>
             </div>
@@ -384,7 +444,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               disabled={isSubmitting}
               className="w-full py-3.5 bg-[#1B4332] hover:bg-[#143427] disabled:opacity-60 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors"
             >
-              {isSubmitting ? (language === 'ky' ? 'Жөнөтүлүүдө...' : 'Отправка...') : `${t.checkout.confirmBtn} (${formatPrice(finalTotal, currency)})`}
+              {isRedirecting
+                ? (language === 'ky' ? 'Төлөмгө өтүүдө...' : 'Переходим к оплате...')
+                : isSubmitting
+                ? (language === 'ky' ? 'Жөнөтүлүүдө...' : 'Отправка...')
+                : payOnline && onlinePaymentAvailable
+                ? `${language === 'ky' ? 'Онлайн төлөө' : 'Оплатить онлайн'} (${formatPrice(finalTotal, currency)})`
+                : `${t.checkout.confirmBtn} (${formatPrice(finalTotal, currency)})`}
             </button>
           </form>
         )}

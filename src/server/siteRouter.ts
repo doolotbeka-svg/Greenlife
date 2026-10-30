@@ -1,7 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
 import type { Order, SiteContent } from '../types/store';
-import { normalizeContent } from '../data/defaultContent.js';
+import { normalizeContent, DEFAULT_CONTENT } from '../data/defaultContent.js';
+import { createFinikPayment, isFinikConfigured, parseFinikWebhook } from './finik.js';
+import { priceOrder, PricingError } from './pricing.js';
 import { readJson, writeJson, saveImage, openFile, isAllowedImageType, listPaths, removePath } from './storage.js';
 
 const CONTENT_PATH = 'content/site.json';
@@ -65,6 +67,22 @@ const requireAdmin: express.RequestHandler = async (req, res, next) => {
   }
 };
 
+async function loadContent(): Promise<SiteContent> {
+  const saved = await readJson<SiteContent>(CONTENT_PATH);
+  return saved ? normalizeContent(saved) : DEFAULT_CONTENT;
+}
+
+function onlinePaymentAvailable(content: SiteContent): boolean {
+  return isFinikConfigured() && content.settings.onlinePaymentEnabled !== false;
+}
+
+// Public address of the site, for the links we hand to Finik
+function siteOrigin(req: express.Request): string {
+  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, '');
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+}
+
 function str(v: unknown, max = 500): string {
   return typeof v === 'string' ? v.slice(0, max) : '';
 }
@@ -76,7 +94,8 @@ export function createSiteRouter() {
     try {
       const saved = await readJson<SiteContent>(CONTENT_PATH);
       res.set('Cache-Control', 'no-store');
-      res.json({ content: saved ? normalizeContent(saved) : null });
+      const content = saved ? normalizeContent(saved) : DEFAULT_CONTENT;
+      res.json({ content: saved ? content : null, onlinePayment: onlinePaymentAvailable(content), finikConfigured: isFinikConfigured() });
     } catch (err) {
       next(err);
     }
@@ -160,6 +179,30 @@ export function createSiteRouter() {
         res.status(400).json({ error: 'bad_order' });
         return;
       }
+      const content = await loadContent();
+      const deliveryMethod = ['pickup', 'courier_osh', 'kg_delivery'].includes(o.deliveryMethod) ? o.deliveryMethod : 'pickup';
+      const wantsOnline = o.paymentMethod === 'online';
+      if (wantsOnline && !onlinePaymentAvailable(content)) {
+        res.status(400).json({ error: 'online_payment_unavailable' });
+        return;
+      }
+
+      let priced;
+      try {
+        priced = priceOrder(
+          content,
+          o.items.slice(0, 100).map((i: any) => ({ productId: str(i?.product?.id, 60), quantity: Number(i?.quantity) })),
+          deliveryMethod,
+          str(o.promoCode, 40)
+        );
+      } catch (err) {
+        if (err instanceof PricingError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+
       const id = `OSH-${Date.now().toString().slice(-6)}${crypto.randomInt(10, 99)}`;
       const order: Order = {
         id,
@@ -170,31 +213,100 @@ export function createSiteRouter() {
         email: str(o.email, 120),
         city: str(o.city, 120),
         address: str(o.address, 300),
-        deliveryMethod: ['pickup', 'courier_osh', 'kg_delivery'].includes(o.deliveryMethod) ? o.deliveryMethod : 'pickup',
-        paymentMethod: 'card_on_delivery',
-        items: o.items.slice(0, 100).map((i: any) => ({
-          product: {
-            id: str(i?.product?.id, 60),
-            name: str(i?.product?.name, 200),
-            nameKy: str(i?.product?.nameKy, 200),
-            retailPrice: Number(i?.product?.retailPrice) || 0,
-            wholesalePrice: Number(i?.product?.wholesalePrice) || 0,
-            pv: Number(i?.product?.pv) || 0,
-            image: str(i?.product?.image, 300),
-          },
-          quantity: Math.max(1, Math.min(999, Number(i?.quantity) || 1)),
-        })) as Order['items'],
-        totalRetail: Number(o.totalRetail) || 0,
-        totalWholesale: Number(o.totalWholesale) || 0,
-        profit: Number(o.profit) || 0,
-        totalPv: Number(o.totalPv) || 0,
-        promoCode: str(o.promoCode, 40) || undefined,
-        discount: Number(o.discount) || 0,
-        deliveryCost: Number(o.deliveryCost) || 0,
+        deliveryMethod,
+        paymentMethod: wantsOnline ? 'online' : 'card_on_delivery',
+        ...priced,
         status: 'new',
+        paymentStatus: wantsOnline ? 'pending' : undefined,
       };
       await writeJson(`orders/${id}.json`, order);
+
+      if (wantsOnline) {
+        const origin = siteOrigin(req);
+        try {
+          order.paymentUrl = await createFinikPayment({
+            paymentId: id,
+            amount: order.totalRetail,
+            description: `${content.settings.storeName || 'Greenleaf Osh'}: заказ ${id}`,
+            displayName: content.settings.storeName || 'Greenleaf Osh',
+            redirectUrl: `${origin}/?payment=${encodeURIComponent(id)}`,
+            webhookUrl: `${origin}/api/payments/finik/webhook`,
+            lang: o.lang === 'ky' ? 'ky' : 'ru',
+          });
+          await writeJson(`orders/${id}.json`, order);
+        } catch (err) {
+          console.error('Finik payment creation failed:', err);
+          order.paymentStatus = 'failed';
+          await writeJson(`orders/${id}.json`, order);
+          res.json({ order, paymentError: true });
+          return;
+        }
+      }
+
       res.json({ order });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Lets the shopper's page show the payment result after returning from Finik
+  router.get('/orders/:id/payment', async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const order = /^[\w-]+$/.test(id) ? await readJson<Order>(`orders/${id}.json`) : null;
+      if (!order) {
+        res.status(404).json({ error: 'not_found' });
+        return;
+      }
+      res.set('Cache-Control', 'no-store');
+      res.json({ id: order.id, paymentStatus: order.paymentStatus || 'unpaid' });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Finik calls this when a payment finishes; the request is accepted only with a valid Finik signature
+  router.post('/payments/finik/webhook', express.json({ limit: '100kb' }), async (req, res, next) => {
+    try {
+      const query: Record<string, string> = {};
+      for (const [k, v] of Object.entries(req.query)) query[k] = String(v);
+      const event = parseFinikWebhook(
+        req.method,
+        // Finik signs the full public path; originalUrl keeps the /api prefix the router strips
+        req.originalUrl.split('?')[0],
+        String(req.headers['x-forwarded-host'] || req.headers.host || ''),
+        req.headers,
+        req.body,
+        query
+      );
+      if (!event) {
+        res.status(401).json({ error: 'invalid_signature' });
+        return;
+      }
+      const order = /^[\w-]+$/.test(event.paymentId) ? await readJson<Order>(`orders/${event.paymentId}.json`) : null;
+      if (!order) {
+        res.status(404).json({ error: 'not_found' });
+        return;
+      }
+      if (order.paymentStatus === 'paid') {
+        res.json({ ok: true });
+        return;
+      }
+      if (event.status === 'paid') {
+        // Never mark an order paid for less than its total
+        if (event.amount === null || event.amount + 0.01 < order.totalRetail) {
+          console.error('Finik webhook amount mismatch for', order.id, event.amount, order.totalRetail);
+          res.status(400).json({ error: 'amount_mismatch' });
+          return;
+        }
+        order.paymentStatus = 'paid';
+        order.paidAt = new Date().toISOString();
+        order.transactionId = event.transactionId || undefined;
+      } else if (event.status === 'failed') {
+        order.paymentStatus = 'failed';
+      }
+      await writeJson(`orders/${order.id}.json`, order);
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }

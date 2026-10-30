@@ -49,6 +49,8 @@ interface AdminPanelModalProps {
   heroTexts: HeroTexts;
   // Unpublished edits exist
   isDirty: boolean;
+  // Finik keys are set on the server
+  finikConfigured: boolean;
   // Saved content finished loading from the server, so publishing will not overwrite it with defaults
   contentReady: boolean;
   getContent: () => SiteContent;
@@ -80,6 +82,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   announcement,
   heroTexts,
   isDirty,
+  finikConfigured,
   contentReady,
   getContent,
   onPublished,
@@ -1270,6 +1273,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 #{order.id}
                               </span>
                               <span className="text-[#6D8374]">{order.date}</span>
+                              {order.paymentMethod === 'online' && (
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                    order.paymentStatus === 'paid'
+                                      ? 'bg-[#E3F2E6] text-[#245C3F] border-[#BCDDC3]'
+                                      : order.paymentStatus === 'failed'
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+                                  }`}
+                                >
+                                  {order.paymentStatus === 'paid'
+                                    ? L('Finik аркылуу төлөндү', 'Оплачен через Finik')
+                                    : order.paymentStatus === 'failed'
+                                    ? L('Төлөм өткөн жок', 'Оплата не прошла')
+                                    : L('Төлөм күтүлүүдө', 'Ожидает оплаты')}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -1606,6 +1626,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           onChange={(e) => setLocalSettings({ ...localSettings, freeDeliveryKgThreshold: Number(e.target.value) })}
                           className="w-full px-3 py-2 bg-white border border-[#CBD7C7] rounded-lg font-mono text-xs"
                         />
+                      </div>
+                      <div className="sm:col-span-2 bg-white border border-[#DCE4D8] rounded-lg p-3 space-y-1">
+                        <label className="inline-flex items-center gap-2 font-semibold text-[#183325] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={localSettings.onlinePaymentEnabled !== false}
+                            onChange={(e) => setLocalSettings({ ...localSettings, onlinePaymentEnabled: e.target.checked })}
+                            className="w-4 h-4 accent-[#1B4332]"
+                          />
+                          {L('Finik аркылуу онлайн төлөмдү кабыл алуу', 'Принимать онлайн-оплату через Finik')}
+                        </label>
+                        <p className={`text-[11px] ${finikConfigured ? 'text-[#2D6A4F]' : 'text-amber-700'}`}>
+                          {finikConfigured
+                            ? L('Finik ачкычтары серверде орнотулган.', 'Ключи Finik настроены на сервере.')
+                            : L(
+                                'Finik ачкычтары серверде али жок, ошондуктан онлайн төлөм көрсөтүлбөйт.',
+                                'Ключи Finik на сервере ещё не заданы, поэтому онлайн-оплата пока не показывается.'
+                              )}
+                        </p>
                       </div>
                       <div>
                         <label className="block font-semibold text-[#183325] mb-1">Instagram</label>
