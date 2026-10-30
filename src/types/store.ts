@@ -37,6 +37,8 @@ export interface Product {
   hidden?: boolean;
 }
 
+export type DeliveryMethodOption = 'pickup' | 'cdek' | 'courier' | 'courier_osh' | 'kg_delivery';
+
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -50,8 +52,8 @@ export interface Order {
   email: string;
   city: string;
   address: string;
-  deliveryMethod: 'pickup' | 'cdek' | 'courier' | 'courier_osh' | 'kg_delivery';
-  paymentMethod: 'card_on_delivery' | 'cash';
+  deliveryMethod: DeliveryMethodOption;
+  paymentMethod: 'card_on_delivery' | 'cash' | 'online';
   items: CartItem[];
   totalRetail: number;
   totalWholesale: number;
@@ -64,6 +66,11 @@ export interface Order {
   discount?: number;
   deliveryCost?: number;
   createdAt?: string;
+  // Online payment through Finik
+  paymentStatus?: 'unpaid' | 'pending' | 'paid' | 'failed';
+  paymentUrl?: string;
+  paidAt?: string;
+  transactionId?: string;
 }
 
 export interface SellerSettings {
@@ -84,6 +91,8 @@ export interface SellerSettings {
   freeDeliveryKgThreshold?: number;
   workingHours: string;
   workingHoursKy?: string;
+  // Offer Finik online payment at checkout (also needs the Finik keys on the server)
+  onlinePaymentEnabled?: boolean;
   instagram?: string;
   telegram?: string;
   email?: string;

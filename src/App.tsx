@@ -19,9 +19,10 @@ import { AboutCompany } from './components/AboutCompany';
 import { StoreLocationMap } from './components/StoreLocationMap';
 import { AIChatBot } from './components/AIChatBot';
 import { Footer } from './components/Footer';
+import { PaymentResultModal } from './components/PaymentResultModal';
 import { Check } from 'lucide-react';
 import { safeStorage } from './utils/storage';
-import { fetchContent, submitOrder } from './utils/api';
+import { fetchContent, submitOrder, fetchPaymentStatus } from './utils/api';
 import { findPromo, promoDiscount } from './utils/promo';
 
 const CONTENT_CACHE_KEY = 'greenleaf_site_content_cache';
@@ -49,6 +50,14 @@ export default function App() {
   // Server content loaded (or confirmed empty); until then the admin must not publish
   const [isContentReady, setIsContentReady] = useState(false);
   const [appliedPromoCode, setAppliedPromoCode] = useState('');
+  // Finik checkout is offered only when the server has Finik keys and the admin left it on
+  const [isOnlinePaymentAvailable, setIsOnlinePaymentAvailable] = useState(false);
+  const [isFinikConfigured, setIsFinikConfigured] = useState(false);
+  // Shopper came back from the Finik payment page (?payment=<order id>)
+  const [paymentReturn, setPaymentReturn] = useState<{ id: string; status: Order['paymentStatus'] | 'checking' } | null>(() => {
+    const id = new URLSearchParams(window.location.search).get('payment');
+    return id ? { id, status: 'checking' } : null;
+  });
 
   // Language & Currency
   const [language, setLanguage] = useState<Language>(() => {
@@ -145,8 +154,10 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     fetchContent()
-      .then((content) => {
+      .then(({ content, onlinePayment, finikConfigured }) => {
         if (cancelled) return;
+        setIsOnlinePaymentAvailable(onlinePayment);
+        setIsFinikConfigured(finikConfigured);
         const next = content ? normalizeContent(content) : DEFAULT_CONTENT;
         applyContent(next);
         setIsContentReady(true);
@@ -279,21 +290,61 @@ export default function App() {
   };
 
   // Sends the order to the shop; if the server is unreachable the order stays local and
-  // the shopper can still send it over WhatsApp from the confirmation screen
-  const handleOrderSuccess = async (draft: Order): Promise<{ order: Order; saved: boolean }> => {
+  // the shopper can still send it over WhatsApp from the confirmation screen.
+  // For online payment the shopper is then sent to the Finik payment page.
+  const handleOrderSuccess = async (
+    draft: Order
+  ): Promise<{ order: Order; saved: boolean; paymentError: boolean; redirecting: boolean }> => {
     let order = draft;
     let saved = true;
+    let paymentError = false;
     try {
-      order = await submitOrder(draft);
+      const res = await submitOrder(draft, language);
+      order = res.order;
+      paymentError = res.paymentError;
     } catch {
       saved = false;
+      if (draft.paymentMethod === 'online') paymentError = true;
     }
     setOrders((prev) => [order, ...prev]);
     handleClearCart();
     setAppliedPromoCode('');
+    if (order.paymentUrl && !paymentError) {
+      window.location.assign(order.paymentUrl);
+      return { order, saved, paymentError, redirecting: true };
+    }
     showToast(`${language === 'ky' ? 'Буюртма' : 'Заказ'} #${order.id} ${language === 'ky' ? 'кабыл алынды!' : 'успешно сформирован!'}`);
-    return { order, saved };
+    return { order, saved, paymentError, redirecting: false };
   };
+
+  // After returning from Finik, wait for its webhook to confirm the payment
+  useEffect(() => {
+    if (!paymentReturn || paymentReturn.status !== 'checking') return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    let cancelled = false;
+    let attempts = 0;
+    const check = async () => {
+      attempts += 1;
+      let status: Order['paymentStatus'] | undefined;
+      try {
+        status = await fetchPaymentStatus(paymentReturn.id);
+      } catch {
+        status = undefined;
+      }
+      if (cancelled) return;
+      if (status === 'paid' || status === 'failed' || attempts >= 15) {
+        const final = status === 'paid' || status === 'failed' ? status : 'pending';
+        setPaymentReturn({ id: paymentReturn.id, status: final });
+        setOrders((prev) => prev.map((o) => (o.id === paymentReturn.id ? { ...o, paymentStatus: final } : o)));
+        return;
+      }
+      window.setTimeout(check, 2000);
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentReturn?.id]);
 
   const visibleProducts = products.filter((p) => !p.hidden);
 
@@ -325,6 +376,7 @@ export default function App() {
           announcement={announcement}
           heroTexts={heroTexts}
           isDirty={isContentDirty}
+          finikConfigured={isFinikConfigured}
           contentReady={isContentReady}
           getContent={currentContent}
           onPublished={handleContentPublished}
@@ -372,6 +424,17 @@ export default function App() {
             ✕
           </button>
         </div>
+      )}
+
+      {/* Result of an online payment, shown after Finik sends the shopper back */}
+      {paymentReturn && (
+        <PaymentResultModal
+          orderId={paymentReturn.id}
+          status={paymentReturn.status}
+          language={language}
+          whatsappPhone={sellerSettings.whatsappPhone}
+          onClose={() => setPaymentReturn(null)}
+        />
       )}
 
       {/* Toast Feedback */}
@@ -508,6 +571,7 @@ export default function App() {
         currency={currency}
         promoCode={appliedPromo ? appliedPromo.code : ''}
         discount={cartDiscount}
+        onlinePaymentAvailable={isOnlinePaymentAvailable}
         onOrderSuccess={handleOrderSuccess}
       />
 

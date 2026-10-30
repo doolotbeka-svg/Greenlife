@@ -1,4 +1,4 @@
-import { PromoCode } from '../types/store';
+import type { PromoCode } from '../types/store';
 
 export function findPromo(codes: PromoCode[], code: string): PromoCode | null {
   const wanted = code.trim().toUpperCase();

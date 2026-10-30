@@ -42,9 +42,11 @@ export const adminSession = {
   },
 };
 
-export async function fetchContent(): Promise<SiteContent | null> {
-  const { content } = await request<{ content: SiteContent | null }>('/content');
-  return content;
+// content is null until the admin publishes; onlinePayment says whether Finik checkout is available
+// finikConfigured: the server has the Finik keys (the admin toggle can still turn checkout off)
+export async function fetchContent(): Promise<{ content: SiteContent | null; onlinePayment: boolean; finikConfigured: boolean }> {
+  const res = await request<{ content: SiteContent | null; onlinePayment?: boolean; finikConfigured?: boolean }>('/content');
+  return { content: res.content, onlinePayment: !!res.onlinePayment, finikConfigured: !!res.finikConfigured };
 }
 
 export async function saveContent(content: SiteContent, password: string): Promise<string> {
@@ -94,13 +96,19 @@ export async function uploadImage(file: File, password: string): Promise<string>
   return url;
 }
 
-export async function submitOrder(order: Order): Promise<Order> {
-  const res = await request<{ order: Order }>('/orders', {
+// paymentError: the order was saved but Finik did not return a payment link
+export async function submitOrder(order: Order, lang: string): Promise<{ order: Order; paymentError: boolean }> {
+  const res = await request<{ order: Order; paymentError?: boolean }>('/orders', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ order }),
+    body: JSON.stringify({ order: { ...order, lang } }),
   });
-  return res.order;
+  return { order: res.order, paymentError: !!res.paymentError };
+}
+
+export async function fetchPaymentStatus(orderId: string): Promise<Order['paymentStatus']> {
+  const res = await request<{ paymentStatus: Order['paymentStatus'] }>(`/orders/${encodeURIComponent(orderId)}/payment`);
+  return res.paymentStatus;
 }
 
 export async function fetchOrders(password: string): Promise<Order[]> {
